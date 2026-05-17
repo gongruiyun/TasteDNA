@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #4F6EF7;
+  --color-primary-light: #EEF1FE;
+  --color-primary-dark: #3451D1;
+  --color-neutral-50: #F8F9FB;
+  --color-neutral-100: #F1F3F7;
+  --color-neutral-200: #E4E7EF;
+  --color-neutral-700: #374151;
+  --color-neutral-900: #111827;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  color: var(--color-neutral-700);
+  font-family: "Inter", "PingFang SC", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* CodeMirror overrides */
+.cm-editor {
+  height: 100%;
+}
+.cm-editor.cm-focused {
+  outline: none;
+}

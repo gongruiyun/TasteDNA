@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tastedna",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/bytedance/Desktop/claude/TasteDNA/tastedna-app",
+      "port": 3031,
+      "autoPort": true
+    }
+  ]
+}

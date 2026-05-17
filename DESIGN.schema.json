@@ -1,0 +1,427 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tastedna.app/design-schema/v1",
+  "title": "TasteDNA DESIGN.md Schema",
+  "description": "DESIGN.md 的结构化 JSON Schema，用于可视化渲染、AI 提示词生成与双向绑定",
+  "type": "object",
+  "required": ["meta"],
+  "properties": {
+
+    "meta": {
+      "type": "object",
+      "description": "文件元数据，存储于 YAML front matter",
+      "required": ["project", "version"],
+      "properties": {
+        "project":     { "type": "string", "description": "项目名称" },
+        "version":     { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "语义化版本号" },
+        "created":     { "type": "string", "format": "date", "description": "创建日期" },
+        "updated":     { "type": "string", "format": "date", "description": "最后更新日期" },
+        "language":    { "type": "string", "enum": ["zh-CN", "en-US", "bilingual"], "default": "zh-CN" },
+        "description": { "type": "string", "description": "项目简要描述" }
+      }
+    },
+
+    "designLanguage": {
+      "type": "object",
+      "description": "## design-language 节，定义整体设计语言和风格关键词",
+      "properties": {
+        "keywords": {
+          "type": "array",
+          "description": "风格关键词列表，每项附带中文注释",
+          "items": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string" },
+              "zh":    { "type": "string", "description": "中文说明" }
+            }
+          }
+        },
+        "personality": {
+          "type": "object",
+          "description": "品牌性格描述",
+          "properties": {
+            "text": { "type": "string" },
+            "zh":   { "type": "string" }
+          }
+        },
+        "aiPromptSummary": {
+          "type": "string",
+          "description": "给 AI 的风格总结 Prompt，英文，直接可用于 AI 提示词"
+        }
+      }
+    },
+
+    "colors": {
+      "type": "object",
+      "description": "## colors 节，定义完整的色彩体系",
+      "properties": {
+        "brand":    { "$ref": "#/$defs/colorGroup" },
+        "semantic": { "$ref": "#/$defs/colorGroup" },
+        "neutral":  { "$ref": "#/$defs/colorScale" },
+        "gradient": { "$ref": "#/$defs/gradientGroup" },
+        "darkMode": { "$ref": "#/$defs/colorGroup" }
+      }
+    },
+
+    "typography": {
+      "type": "object",
+      "description": "## typography 节，定义字体体系",
+      "properties": {
+        "fontFamily": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string", "description": "CSS font-family 值" },
+              "zh":    { "type": "string" }
+            }
+          }
+        },
+        "typeScale": {
+          "type": "object",
+          "description": "字号比例，key 为尺寸名称（xs/sm/base/md/lg/xl/2xl/3xl/4xl）",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["size", "lineHeight", "weight"],
+            "properties": {
+              "size":       { "type": "string", "description": "字号，如 '14px'" },
+              "lineHeight": { "type": "string", "description": "行高，如 '1.6'" },
+              "weight":     { "type": "integer", "enum": [300,400,500,600,700,800] },
+              "zh":         { "type": "string", "description": "用途说明" }
+            }
+          }
+        },
+        "fontWeight": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "integer" },
+              "zh":    { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "spacing": {
+      "type": "object",
+      "description": "## spacing 节，定义间距系统和布局常量",
+      "properties": {
+        "scale": {
+          "type": "object",
+          "description": "间距比例，key 为间距步数，value 为像素值",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string" },
+              "zh":    { "type": "string" }
+            }
+          }
+        },
+        "layout": {
+          "type": "object",
+          "description": "布局常量（侧边栏宽度、顶栏高度等）",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "zh":    { "type": "string" }
+            }
+          }
+        },
+        "breakpoints": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "zh":    { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "borders": {
+      "type": "object",
+      "description": "## borders 节，定义圆角和边框粗细",
+      "properties": {
+        "radius": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string" },
+              "zh":    { "type": "string" }
+            }
+          }
+        },
+        "width": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "zh":    { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "shadows": {
+      "type": "object",
+      "description": "## shadows 节，定义阴影/层级系统",
+      "properties": {
+        "elevation": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string", "description": "CSS box-shadow 值" },
+              "zh":    { "type": "string", "description": "使用场景说明" }
+            }
+          }
+        }
+      }
+    },
+
+    "motion": {
+      "type": "object",
+      "description": "## motion 节，定义动效系统",
+      "properties": {
+        "easing": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string", "description": "CSS cubic-bezier 或 ease 关键词" },
+              "zh":    { "type": "string" }
+            }
+          }
+        },
+        "duration": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string", "description": "如 '200ms'" },
+              "zh":    { "type": "string" }
+            }
+          }
+        },
+        "patterns": {
+          "type": "object",
+          "description": "动效模式，分 entrance / exit / interaction / pageTransition 四类",
+          "properties": {
+            "entrance":       { "$ref": "#/$defs/animationPatternGroup" },
+            "exit":           { "$ref": "#/$defs/animationPatternGroup" },
+            "interaction":    { "$ref": "#/$defs/animationPatternGroup" },
+            "pageTransition": { "$ref": "#/$defs/animationPatternGroup" }
+          }
+        }
+      }
+    },
+
+    "components": {
+      "type": "object",
+      "description": "## components 节，每个 key 是组件名称",
+      "additionalProperties": {
+        "type": "object",
+        "description": "组件规范，key 为属性名，value 为规范描述",
+        "properties": {
+          "_description": { "type": "string", "description": "组件用途说明" }
+        },
+        "additionalProperties": {
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "object",
+              "properties": {
+                "value": { "type": "string" },
+                "zh":    { "type": "string" }
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    "illustrationStyle": {
+      "type": "object",
+      "description": "## illustration-style 节，定义插画风格规范",
+      "properties": {
+        "styleKeywords": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "zh":    { "type": "string" }
+            }
+          }
+        },
+        "colorPalette": {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" },
+            "zh":   { "type": "string" }
+          }
+        },
+        "compositionRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" },
+              "zh":   { "type": "string" }
+            }
+          }
+        },
+        "aiPromptTemplate": {
+          "type": "string",
+          "description": "插画生成 Prompt 模板，{subject} 和 {additional_description} 为占位符"
+        },
+        "doDont": {
+          "type": "object",
+          "properties": {
+            "do":   { "type": "array", "items": { "type": "string" } },
+            "dont": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "iconStyle": {
+      "type": "object",
+      "description": "## icon-style 节，定义图标规范",
+      "properties": {
+        "styleKeywords": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": { "type": "string" },
+              "zh":    { "type": "string" }
+            }
+          }
+        },
+        "specs": {
+          "type": "object",
+          "properties": {
+            "grid":         { "type": "string" },
+            "strokeWidth":  { "type": "string" },
+            "padding":      { "type": "string" },
+            "cornerRadius": { "type": "string" },
+            "color":        { "type": "string" }
+          }
+        },
+        "sizeUsage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "size": { "type": "string" },
+              "zh":   { "type": "string" }
+            }
+          }
+        },
+        "aiPromptTemplate": {
+          "type": "string",
+          "description": "SVG 图标生成 Prompt 模板"
+        },
+        "namingConvention": {
+          "type": "object",
+          "properties": {
+            "pattern":    { "type": "string" },
+            "example":    { "type": "string" },
+            "categories": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "aiContext": {
+      "type": "object",
+      "description": "## ai-context 节，存储给 AI 直接使用的完整上下文摘要",
+      "properties": {
+        "fullPrompt": {
+          "type": "string",
+          "description": "完整的 AI 上下文 Prompt，可直接粘贴进任何 AI 工具"
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "colorToken": {
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "CSS 颜色值，支持 hex / rgba / hsl",
+          "pattern": "^(#[0-9A-Fa-f]{3,8}|rgba?\\(|hsl\\()"
+        },
+        "zh": {
+          "type": "string",
+          "description": "中文说明，描述该颜色的用途和语义"
+        },
+        "usage": {
+          "type": "string",
+          "description": "英文用途说明，用于生成 AI Prompt"
+        }
+      }
+    },
+
+    "colorGroup": {
+      "type": "object",
+      "description": "一组相关颜色 token，key 为 token 名",
+      "additionalProperties": { "$ref": "#/$defs/colorToken" }
+    },
+
+    "colorScale": {
+      "type": "object",
+      "description": "色阶，key 通常为数字（0/50/100/.../900）",
+      "additionalProperties": { "$ref": "#/$defs/colorToken" }
+    },
+
+    "gradientToken": {
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "value": { "type": "string", "description": "CSS gradient 值" },
+        "zh":    { "type": "string" }
+      }
+    },
+
+    "gradientGroup": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/gradientToken" }
+    },
+
+    "animationPattern": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": { "type": "string", "description": "动效的 CSS/JS 描述，格式：属性变化, duration, easing" },
+        "zh":          { "type": "string" },
+        "cssExample":  { "type": "string", "description": "可选：对应的 CSS 代码示例" },
+        "framerExample": { "type": "string", "description": "可选：Framer Motion 代码示例" }
+      }
+    },
+
+    "animationPatternGroup": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/animationPattern" }
+    }
+  }
+}
