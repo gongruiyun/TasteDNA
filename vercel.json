@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "cd tastedna-app && npm install && npm run build",
-  "outputDirectory": "tastedna-app/.next",
-  "installCommand": "npm install"
+  "installCommand": "cd tastedna-app && npm install",
+  "buildCommand": "cd tastedna-app && npm run build",
+  "outputDirectory": "tastedna-app/.next"
 }
