@@ -426,7 +426,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
                 {urlData.title ? `（${urlData.title}）` : ''}
               </div>
             )}
-            {urlData?.error && <p className="text-[10px] text-red-500">⚠ {urlData.error as string}</p>}
+            {!!urlData?.error && <p className="text-[10px] text-red-500">⚠ {String(urlData.error)}</p>}
             <div className="flex gap-2">
               <input value={input} onChange={e => setInput(e.target.value)} placeholder="补充说明（可选）"
                 className="flex-1 text-xs border border-neutral-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-400"
