@@ -1,11 +1,14 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import type { DesignAST } from '@/lib/parser/types'
 import SectionBlock from './SectionBlock'
+import { useLanguage } from '@/lib/i18n'
 
 interface Props {
   ast: DesignAST
   onTokenClick?: (line: number) => void
+  onTokenColorChange?: (line: number, color: string) => void
   /** Highlighted line from editor cursor */
   highlightedLine?: number
 }
@@ -24,18 +27,40 @@ const sectionIcons: Record<string, string> = {
   'ai-context': '⌘',
 }
 
-export default function PreviewPanel({ ast, onTokenClick, highlightedLine }: Props) {
+export default function PreviewPanel({ ast, onTokenClick, onTokenColorChange, highlightedLine }: Props) {
+  const { t } = useLanguage()
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (highlightedLine == null || !scrollRef.current) return
+    // Find the deepest section whose start <= cursor (line.end is unreliable in parser)
+    let matchedSection = null
+    for (const section of ast.sections) {
+      if (section.line.start <= highlightedLine) matchedSection = section
+      else break
+    }
+    if (!matchedSection) return
+    // Find deepest matching subsection
+    let targetId = `section-${matchedSection.id}`
+    for (const sub of matchedSection.subsections) {
+      if (sub.line.start <= highlightedLine) targetId = `subsection-${sub.id}-${matchedSection.id}`
+      else break
+    }
+    const el = scrollRef.current.querySelector(`#${CSS.escape(targetId)}`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [highlightedLine, ast])
+
   if (!ast.sections.length) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-neutral-400 gap-3">
         <div className="text-4xl">◎</div>
-        <p className="text-sm">在左侧粘贴 DESIGN.md 内容，这里会实时渲染可视化预览</p>
+        <p className="text-sm">{t('previewPlaceholder')}</p>
       </div>
     )
   }
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div ref={scrollRef} className="h-full overflow-y-auto">
       {/* Header */}
       <div className="px-8 pt-8 pb-6 border-b border-neutral-100">
         <h1 className="text-2xl font-bold text-neutral-900">
@@ -53,12 +78,12 @@ export default function PreviewPanel({ ast, onTokenClick, highlightedLine }: Pro
 
       {/* Sections */}
       <div className="px-8 py-6 space-y-10">
-        {ast.sections.map((section) => {
+        {ast.sections.map((section, sIdx) => {
           if (!section.subsections.length) return null
           const icon = sectionIcons[section.id] ?? '◦'
 
           return (
-            <section key={section.id} id={`section-${section.id}`}>
+            <section key={`${section.id}-${sIdx}`} id={`section-${section.id}`}>
               {/* Section header */}
               <div className="flex items-center gap-2 mb-5">
                 <span className="text-sm text-indigo-400 font-medium w-6 text-center">{icon}</span>
@@ -68,12 +93,14 @@ export default function PreviewPanel({ ast, onTokenClick, highlightedLine }: Pro
 
               {/* Subsections */}
               <div className="pl-8 space-y-6">
-                {section.subsections.map((sub) => (
-                  <SectionBlock
-                    key={sub.id}
-                    subsection={sub}
-                    onTokenClick={onTokenClick}
-                  />
+                {section.subsections.map((sub, subIdx) => (
+                  <div key={`${sub.id}-${subIdx}`} id={`subsection-${sub.id}-${section.id}`}>
+                    <SectionBlock
+                      subsection={sub}
+                      onTokenClick={onTokenClick}
+                      onTokenColorChange={onTokenColorChange}
+                    />
+                  </div>
                 ))}
               </div>
             </section>
@@ -83,9 +110,7 @@ export default function PreviewPanel({ ast, onTokenClick, highlightedLine }: Pro
 
       {/* Footer */}
       <div className="px-8 py-6 border-t border-neutral-100 text-center">
-        <p className="text-xs text-neutral-400">
-          由 <span className="font-medium text-indigo-500">TasteDNA</span> 生成 · 基于 DESIGN.md 规范
-        </p>
+        <p className="text-xs text-neutral-400">{t('previewFooter')}</p>
       </div>
     </div>
   )

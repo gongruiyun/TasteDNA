@@ -15,21 +15,23 @@ import ListRenderer from './renderers/ListRenderer'
 import TextRenderer from './renderers/TextRenderer'
 import RulesRenderer from './renderers/RulesRenderer'
 import GenericScaleRenderer from './renderers/GenericScaleRenderer'
+import ComponentSpecRenderer from './renderers/ComponentSpecRenderer'
 
 interface Props {
   subsection: SubsectionNode
   onTokenClick?: (line: number) => void
+  onTokenColorChange?: (line: number, color: string) => void
 }
 
-export default function SectionBlock({ subsection, onTokenClick }: Props) {
+export default function SectionBlock({ subsection, onTokenClick, onTokenColorChange }: Props) {
   const { type, tokens, groups, rawText, title } = subsection
 
   const renderContent = () => {
     switch (type) {
       case 'color-group':
-        return <ColorGroupRenderer tokens={tokens} onTokenClick={onTokenClick} />
+        return <ColorGroupRenderer tokens={tokens} onTokenClick={onTokenClick} onTokenColorChange={onTokenColorChange} />
       case 'color-scale':
-        return <ColorScaleRenderer tokens={tokens} onTokenClick={onTokenClick} />
+        return <ColorScaleRenderer tokens={tokens} onTokenClick={onTokenClick} onTokenColorChange={onTokenColorChange} />
       case 'gradient-group':
         return <GradientRenderer tokens={tokens} onTokenClick={onTokenClick} />
       case 'scale':
@@ -60,10 +62,11 @@ export default function SectionBlock({ subsection, onTokenClick }: Props) {
         return rawText ? <RulesRenderer rawText={rawText} /> : null
       case 'font-list':
         return <GenericScaleRenderer tokens={tokens} onTokenClick={onTokenClick} />
+      case 'component-spec':
+        return <ComponentSpecRenderer groups={groups} tokens={tokens} rawText={rawText} onTokenClick={onTokenClick} />
       case 'layout':
       case 'breakpoints':
       case 'spec':
-      case 'component-spec':
       default:
         if (tokens.length > 0) {
           return <GenericScaleRenderer tokens={tokens} onTokenClick={onTokenClick} />

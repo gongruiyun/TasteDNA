@@ -16,6 +16,7 @@ interface Props {
   value: string
   onChange: (value: string) => void
   highlightLine?: number
+  onCursorChange?: (line: number) => void
 }
 
 const setHighlightLine = StateEffect.define<number | null>()
@@ -56,7 +57,9 @@ const editorTheme = EditorView.theme({
   '.cm-gutters': { backgroundColor: '#282c34', border: 'none', paddingRight: '4px' },
 })
 
-const CodeEditor = forwardRef<CodeEditorHandle, Props>(({ value, onChange, highlightLine }, ref) => {
+const CodeEditor = forwardRef<CodeEditorHandle, Props>(({ value, onChange, highlightLine, onCursorChange }, ref) => {
+  const onCursorChangeRef = useRef(onCursorChange)
+  onCursorChangeRef.current = onCursorChange
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
 
@@ -94,6 +97,10 @@ const CodeEditor = forwardRef<CodeEditorHandle, Props>(({ value, onChange, highl
           EditorView.lineWrapping,
           EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) onChange(update.state.doc.toString())
+            if (update.selectionSet) {
+              const line = update.state.doc.lineAt(update.state.selection.main.head).number
+              onCursorChangeRef.current?.(line)
+            }
           }),
         ],
       }),
