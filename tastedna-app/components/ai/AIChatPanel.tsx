@@ -416,7 +416,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
               className="w-full text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 pt-2 pb-8 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
               disabled={generating} />
             <button onClick={handleSend} disabled={!canSend}
-              className="absolute bottom-2 right-2 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
+              className="absolute bottom-3 right-3 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
               style={{ backgroundColor: '#4F6EF7' }}>
               {generating ? '…' : '发送'}
             </button>
@@ -431,7 +431,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
               className="w-full text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 pt-2 pb-8 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
               disabled={generating} />
             <button onClick={handleSend} disabled={!canSend}
-              className="absolute bottom-2 right-2 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
+              className="absolute bottom-3 right-3 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
               style={{ backgroundColor: '#4F6EF7' }}>
               {generating ? '…' : '发送'}
             </button>
