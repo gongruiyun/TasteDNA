@@ -49,6 +49,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
   const [generating, setGenerating] = useState(false)
   const [urlLoading, setUrlLoading] = useState(false)
   const [urlData, setUrlData] = useState<Record<string, unknown> | null>(null)
+  const [guideMode, setGuideMode] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -145,12 +146,12 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode: isRefinement ? 'refine' : tab === 'image' ? 'image' : tab === 'url' ? 'url' : 'generate',
+          mode: guideMode ? 'taste-guide' : isRefinement ? 'refine' : tab === 'image' ? 'image' : tab === 'url' ? 'url' : 'generate',
           description: input || undefined,
-          images: tab === 'image' ? images.map(i => ({ base64: i.base64, mime: i.mime })) : undefined,
-          urlData: tab === 'url' ? urlData : undefined,
-          currentContent: isRefinement ? currentContent : undefined,
-          history: messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+          images: !guideMode && tab === 'image' ? images.map(i => ({ base64: i.base64, mime: i.mime })) : undefined,
+          urlData: !guideMode && tab === 'url' ? urlData : undefined,
+          currentContent: !guideMode && isRefinement ? currentContent : undefined,
+          history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
         }),
         signal: abortRef.current.signal,
       })
@@ -199,15 +200,34 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
     }
   }, [tab, input, images, urlInput, urlData, messages, generating, currentContent])
 
+  const handleStartGuide = useCallback(() => {
+    setGuideMode(true)
+    setMessages([{
+      role: 'assistant',
+      content: '你好！我来帮你找到这个产品的视觉方向。\n\n你脑海里有没有哪个产品或品牌，是你觉得「对了，就是这种感觉」的？不一定是同行业，任何你喜欢的都行。',
+    }])
+  }, [])
+
+  const handleExitGuide = useCallback(() => {
+    setGuideMode(false)
+    setMessages([])
+  }, [])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend()
   }
 
   const canSend = !generating && (
-    (tab === 'text' && !!input.trim()) ||
-    (tab === 'image' && images.length > 0) ||
-    (tab === 'url' && !!urlData && !urlData.error)
+    guideMode ? !!input.trim() : (
+      (tab === 'text' && !!input.trim()) ||
+      (tab === 'image' && images.length > 0) ||
+      (tab === 'url' && !!urlData && !urlData.error)
+    )
   )
+
+  // Detect if a message contains a generated DESIGN.md
+  const isDesignMD = (content: string) =>
+    content.includes('<!-- section:') && content.includes('meta:')
 
   return (
     <div className="flex flex-col h-full bg-white border-t border-neutral-200">
@@ -225,12 +245,15 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
           )}
         </div>
         <div className="flex items-center gap-2">
+          {!collapsed && guideMode && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 font-medium">品味引导</span>
+          )}
           {!collapsed && messages.length > 0 && (
             <button
-              onClick={(e) => { e.stopPropagation(); setMessages([]) }}
+              onClick={(e) => { e.stopPropagation(); guideMode ? handleExitGuide() : setMessages([]) }}
               className="text-[10px] text-neutral-400 hover:text-neutral-600 transition-colors"
             >
-              清空
+              {guideMode ? '退出引导' : '清空'}
             </button>
           )}
           <svg
@@ -245,11 +268,24 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-6">
-            <div className="text-2xl">✦</div>
-            <p className="text-xs font-medium text-neutral-500">描述风格、上传截图或输入网址</p>
-            <p className="text-[11px] text-neutral-400">生成后可继续对话持续优化</p>
-            <div className="flex flex-wrap justify-center gap-1.5 mt-1">
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-4">
+            {/* 从 0 开始 — 引导模式入口 */}
+            <button
+              onClick={handleStartGuide}
+              className="w-full max-w-[200px] flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50 hover:border-indigo-300 transition-colors group"
+            >
+              <span className="text-base">✦</span>
+              <span className="text-[11px] font-semibold text-indigo-600">从 0 开始</span>
+              <span className="text-[10px] text-indigo-400 leading-snug">通过对话发现产品视觉 DNA<br/>直接生成 DESIGN.md</span>
+            </button>
+
+            <div className="flex items-center gap-2 w-full max-w-[220px]">
+              <div className="flex-1 h-px bg-neutral-100" />
+              <span className="text-[10px] text-neutral-300">或直接描述</span>
+              <div className="flex-1 h-px bg-neutral-100" />
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-1.5">
               {['蓝色调 SaaS，干净现代', '暖橙色餐饮 App', '深色科技游戏平台', '极简黑白设计工具'].map(ex => (
                 <button key={ex} onClick={() => { setTab('text'); setInput(ex) }}
                   className="text-[10px] px-2.5 py-1 rounded-full bg-neutral-100 hover:bg-indigo-50 hover:text-indigo-600 text-neutral-500 transition-colors">
@@ -279,31 +315,60 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
             }`}>
               {msg.role === 'assistant' ? (
                 <div>
-                  <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed max-h-32 overflow-y-auto">
-                    {msg.content
-                      ? msg.content.slice(0, 400) + (msg.content.length > 400 ? '\n…' : '')
-                      : <span className="animate-pulse text-neutral-400">生成中…</span>}
-                  </pre>
-                  {msg.content && !generating && (
-                    <div className="mt-2 flex gap-1.5">
-                      <button
-                        onClick={() => onApply(msg.content)}
-                        className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
-                        title="替换编辑器中的全部内容"
-                      >
-                        覆盖
-                      </button>
-                      <button
-                        onClick={() => {
-                          const sep = currentContent.trimEnd() ? '\n\n' : ''
-                          onApply(currentContent.trimEnd() + sep + msg.content)
-                        }}
-                        className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
-                        title="追加到编辑器现有内容末尾"
-                      >
-                        追加
-                      </button>
-                    </div>
+                  {guideMode ? (
+                    // Guide mode: readable prose or DESIGN.md card
+                    isDesignMD(msg.content) ? (
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="text-[10px] font-semibold text-indigo-600">✦ DESIGN.md 已生成</span>
+                        </div>
+                        <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed max-h-28 overflow-y-auto text-neutral-500 mb-2">
+                          {msg.content.slice(0, 300)}{msg.content.length > 300 ? '\n…' : ''}
+                        </pre>
+                        {!generating && (
+                          <button
+                            onClick={() => onApply(msg.content)}
+                            className="w-full text-center text-[11px] font-semibold py-2 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
+                          >
+                            ✦ 写入编辑器
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap text-[12px] leading-relaxed">
+                        {msg.content || <span className="animate-pulse text-neutral-400">思考中…</span>}
+                      </p>
+                    )
+                  ) : (
+                    // Normal mode: monospace code view
+                    <>
+                      <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed max-h-32 overflow-y-auto">
+                        {msg.content
+                          ? msg.content.slice(0, 400) + (msg.content.length > 400 ? '\n…' : '')
+                          : <span className="animate-pulse text-neutral-400">生成中…</span>}
+                      </pre>
+                      {msg.content && !generating && (
+                        <div className="mt-2 flex gap-1.5">
+                          <button
+                            onClick={() => onApply(msg.content)}
+                            className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
+                            title="替换编辑器中的全部内容"
+                          >
+                            覆盖
+                          </button>
+                          <button
+                            onClick={() => {
+                              const sep = currentContent.trimEnd() ? '\n\n' : ''
+                              onApply(currentContent.trimEnd() + sep + msg.content)
+                            }}
+                            className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
+                            title="追加到编辑器现有内容末尾"
+                          >
+                            追加
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ) : (
@@ -323,23 +388,40 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
 
       {/* Input area */}
       <div className="shrink-0 border-t border-neutral-100 px-3 pt-2 pb-3">
-        {/* Tabs */}
-        <div className="flex gap-1 mb-2">
-          {(['text', 'image', 'url'] as InputTab[]).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`text-[11px] px-2.5 py-1 rounded-md transition-colors font-medium ${
-                tab === t ? 'bg-indigo-500 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-              }`}>
-              {t === 'text' ? '📝 文字' : t === 'image' ? '🖼️ 图片' : '🔗 网址'}
+        {/* Tabs — hidden in guide mode */}
+        {!guideMode && (
+          <div className="flex gap-1 mb-2">
+            {(['text', 'image', 'url'] as InputTab[]).map(t => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`text-[11px] px-2.5 py-1 rounded-md transition-colors font-medium ${
+                  tab === t ? 'bg-indigo-500 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                }`}>
+                {t === 'text' ? '📝 文字' : t === 'image' ? '🖼️ 图片' : '🔗 网址'}
+              </button>
+            ))}
+            {messages.length > 0 && (
+              <span className="ml-auto text-[10px] text-neutral-400 self-center">可继续对话优化</span>
+            )}
+          </div>
+        )}
+
+        {/* Guide mode: simple chat input */}
+        {guideMode && (
+          <div className="flex gap-2 mb-1">
+            <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+              placeholder="回复 AI…"
+              className="flex-1 text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
+              disabled={generating} />
+            <button onClick={handleSend} disabled={!canSend}
+              className="px-3 rounded-lg text-xs font-medium text-white self-end h-8 disabled:opacity-40 transition-colors"
+              style={{ backgroundColor: '#4F6EF7' }}>
+              {generating ? '…' : '发送'}
             </button>
-          ))}
-          {messages.length > 0 && (
-            <span className="ml-auto text-[10px] text-neutral-400 self-center">可继续对话优化</span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Text */}
-        {tab === 'text' && (
+        {!guideMode && tab === 'text' && (
           <div className="flex gap-2">
             <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
               placeholder={messages.length > 0 ? '继续优化，例如：主色改暖一点…' : '描述你的产品风格…'}
@@ -354,7 +436,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
         )}
 
         {/* Image */}
-        {tab === 'image' && (
+        {!guideMode && tab === 'image' && (
           <div className="space-y-2">
             {/* Drop zone */}
             <div
@@ -407,7 +489,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
         )}
 
         {/* URL */}
-        {tab === 'url' && (
+        {!guideMode && tab === 'url' && (
           <div className="space-y-2">
             <div className="flex gap-2">
               <input value={urlInput} onChange={e => { setUrlInput(e.target.value); setUrlData(null) }}
