@@ -214,7 +214,10 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend()
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
   }
 
   const canSend = !generating && (
@@ -407,13 +410,13 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
 
         {/* Guide mode: simple chat input */}
         {guideMode && (
-          <div className="flex gap-2 mb-1">
+          <div className="relative mb-1">
             <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder="回复 AI…"
-              className="flex-1 text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
+              placeholder="回复 AI… （回车发送，Shift+回车换行）"
+              className="w-full text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 pt-2 pb-8 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
               disabled={generating} />
             <button onClick={handleSend} disabled={!canSend}
-              className="px-3 rounded-lg text-xs font-medium text-white self-end h-8 disabled:opacity-40 transition-colors"
+              className="absolute bottom-2 right-2 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
               style={{ backgroundColor: '#4F6EF7' }}>
               {generating ? '…' : '发送'}
             </button>
@@ -422,13 +425,13 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
 
         {/* Text */}
         {!guideMode && tab === 'text' && (
-          <div className="flex gap-2">
+          <div className="relative">
             <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder={messages.length > 0 ? '继续优化，例如：主色改暖一点…' : '描述你的产品风格…'}
-              className="flex-1 text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
+              placeholder={messages.length > 0 ? '继续优化… （回车发送，Shift+回车换行）' : '描述你的产品风格… （回车发送，Shift+回车换行）'}
+              className="w-full text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 pt-2 pb-8 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
               disabled={generating} />
             <button onClick={handleSend} disabled={!canSend}
-              className="px-3 rounded-lg text-xs font-medium text-white self-end h-8 disabled:opacity-40 transition-colors"
+              className="absolute bottom-2 right-2 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
               style={{ backgroundColor: '#4F6EF7' }}>
               {generating ? '…' : '发送'}
             </button>
@@ -522,7 +525,6 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
           </div>
         )}
 
-        <p className="text-[10px] text-neutral-400 mt-1.5 text-right">⌘↩ 发送</p>
       </div>
     </div>
   )
