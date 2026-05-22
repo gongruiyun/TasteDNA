@@ -384,15 +384,18 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
                             <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed max-h-28 overflow-y-auto mb-2" style={{ color: 'var(--muted)' }}>
                               {msg.content.slice(0, 300)}{msg.content.length > 300 ? '\n…' : ''}
                             </pre>
-                            {!generating && (
-                              <button
-                                onClick={() => onApply(msg.content)}
-                                className="w-full text-center text-[11px] font-semibold py-2 rounded-lg transition-opacity hover:opacity-80"
-                                style={{ backgroundColor: 'var(--ink)', color: '#ffffff' }}
-                              >
-                                ✦ 写入编辑器
-                              </button>
-                            )}
+                            <button
+                              onClick={() => onApply(msg.content)}
+                              disabled={generating || !msg.content}
+                              className="w-full text-center text-[11px] font-semibold py-2 rounded-lg transition-opacity"
+                              style={{
+                                backgroundColor: (generating || !msg.content) ? 'var(--surface-strong)' : 'var(--ink)',
+                                color: (generating || !msg.content) ? 'var(--muted-soft)' : '#ffffff',
+                                cursor: (generating || !msg.content) ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              {generating ? '生成中…' : '✦ 写入编辑器'}
+                            </button>
                           </div>
                         ) : (
                           <p className="whitespace-pre-wrap text-[12px] leading-relaxed">
@@ -406,29 +409,37 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
                               ? msg.content.slice(0, 400) + (msg.content.length > 400 ? '\n…' : '')
                               : <span className="animate-pulse" style={{ color: 'var(--muted-soft)' }}>生成中…</span>}
                           </pre>
-                          {msg.content && !generating && (
-                            <div className="mt-2 flex gap-1.5">
-                              <button
-                                onClick={() => onApply(msg.content)}
-                                className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg transition-opacity hover:opacity-80"
-                                style={{ backgroundColor: 'var(--ink)', color: '#ffffff' }}
-                                title="替换编辑器中的全部内容"
-                              >
-                                覆盖
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const sep = currentContent.trimEnd() ? '\n\n' : ''
-                                  onApply(currentContent.trimEnd() + sep + msg.content)
-                                }}
-                                className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg transition-opacity hover:opacity-70"
-                                style={{ backgroundColor: 'var(--surface-strong)', color: 'var(--body)' }}
-                                title="追加到编辑器现有内容末尾"
-                              >
-                                追加
-                              </button>
-                            </div>
-                          )}
+                          <div className="mt-2 flex gap-1.5">
+                            <button
+                              onClick={() => onApply(msg.content)}
+                              disabled={!msg.content || generating}
+                              className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg transition-opacity"
+                              style={{
+                                backgroundColor: (!msg.content || generating) ? 'var(--surface-strong)' : 'var(--ink)',
+                                color: (!msg.content || generating) ? 'var(--muted-soft)' : '#ffffff',
+                                cursor: (!msg.content || generating) ? 'not-allowed' : 'pointer',
+                              }}
+                              title="替换编辑器中的全部内容"
+                            >
+                              覆盖
+                            </button>
+                            <button
+                              onClick={() => {
+                                const sep = currentContent.trimEnd() ? '\n\n' : ''
+                                onApply(currentContent.trimEnd() + sep + msg.content)
+                              }}
+                              disabled={!msg.content || generating}
+                              className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg transition-opacity"
+                              style={{
+                                backgroundColor: 'var(--surface-strong)',
+                                color: (!msg.content || generating) ? 'var(--muted-soft)' : 'var(--body)',
+                                cursor: (!msg.content || generating) ? 'not-allowed' : 'pointer',
+                              }}
+                              title="追加到编辑器现有内容末尾"
+                            >
+                              追加
+                            </button>
+                          </div>
                         </>
                       )}
                     </div>
