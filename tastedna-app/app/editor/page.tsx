@@ -144,12 +144,14 @@ export default function EditorPage() {
   return (
     <div className="h-screen flex flex-col bg-neutral-50">
       {/* Topbar */}
-      <header className="h-14 flex items-center gap-4 px-4 bg-white border-b border-neutral-200 shrink-0">
-        <a href="/" className="text-base font-bold text-neutral-900 hover:text-indigo-600 transition-colors">
+      <header className="h-14 flex items-center gap-3 px-5 shrink-0"
+        style={{ backgroundColor: 'var(--canvas)', borderBottom: '1px solid var(--hairline)' }}>
+        <a href="/" className="text-sm font-semibold tracking-tight transition-opacity hover:opacity-60"
+          style={{ color: 'var(--ink)' }}>
           TasteDNA
         </a>
-        <span className="text-neutral-300">|</span>
-        <span className="text-sm text-neutral-600 font-medium">
+        <span style={{ color: 'var(--hairline)' }}>|</span>
+        <span className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
           {ast?.meta.project ?? t('editorTitle')}
         </span>
 
@@ -159,33 +161,44 @@ export default function EditorPage() {
         <div className="flex-1" />
 
         {/* Save state */}
-        <span className="text-xs text-neutral-400">
+        <span className="text-xs" style={{ color: 'var(--muted-soft)' }}>
           {saveState === 'saving' ? t('saving') : t('saved')}
         </span>
 
         {/* Copy Markdown */}
         <button
           onClick={handleCopyPrompt}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-600 transition-colors"
+          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-opacity hover:opacity-70"
+          style={{ backgroundColor: 'var(--surface-card)', color: 'var(--body)', borderRadius: '8px', border: '1px solid var(--hairline)' }}
         >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="5" width="9" height="9" rx="1.5" />
+            <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
+          </svg>
           {copied ? '✓ 已复制' : '复制 DESIGN.md'}
         </button>
 
         {/* Download */}
         <button
           onClick={handleDownload}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-600 transition-colors"
+          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-opacity hover:opacity-70"
+          style={{ backgroundColor: 'var(--surface-card)', color: 'var(--body)', borderRadius: '8px', border: '1px solid var(--hairline)' }}
         >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2v8M5 7l3 3 3-3" />
+            <path d="M2 12h12" />
+          </svg>
           {t('download')}
         </button>
 
         {/* Share */}
         <button
           onClick={handleShare}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+          className="text-xs font-semibold px-3 py-1.5 transition-opacity hover:opacity-80"
           style={{
-            backgroundColor: copied ? '#34C97B22' : '#4F6EF715',
-            color: copied ? '#34C97B' : '#4F6EF7',
+            backgroundColor: copied ? 'var(--brand-mint)' : 'var(--ink)',
+            color: '#ffffff',
+            borderRadius: '8px',
           }}
         >
           {copied ? t('copied') : t('share')}
@@ -199,7 +212,8 @@ export default function EditorPage() {
             if (content.trim()) await handleTranslate(next)
           }}
           disabled={translating}
-          className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-500 transition-colors font-mono disabled:opacity-50 disabled:cursor-not-allowed min-w-[2.5rem] text-center"
+          className="text-xs font-medium px-2.5 py-1.5 font-mono transition-opacity hover:opacity-70 disabled:opacity-40 disabled:cursor-not-allowed min-w-[2.5rem] text-center"
+          style={{ backgroundColor: 'var(--surface-card)', color: 'var(--muted)', borderRadius: '8px', border: '1px solid var(--hairline)' }}
           title={lang === 'zh' ? '翻译为英文' : 'Translate to Chinese'}
         >
           {translating ? '…' : lang === 'zh' ? 'EN' : '中'}
@@ -220,8 +234,8 @@ export default function EditorPage() {
                   onCursorChange={handleCursorChange}
                 />
               </Panel>
-              <PanelResizeHandle className="h-1 bg-neutral-600 hover:bg-indigo-400 transition-colors cursor-row-resize relative group">
-                <div className="absolute inset-x-0 -top-1 -bottom-1 group-hover:bg-indigo-400/20" />
+              <PanelResizeHandle className="h-1 bg-neutral-600 hover:bg-violet-400 transition-colors cursor-row-resize relative group">
+                <div className="absolute inset-x-0 -top-1 -bottom-1 group-hover:bg-violet-400/20" />
               </PanelResizeHandle>
               <Panel
                 ref={aiPanelRef}
@@ -240,6 +254,14 @@ export default function EditorPage() {
                   onToggleCollapse={() => {
                     if (aiCollapsed) aiPanelRef.current?.expand()
                     else aiPanelRef.current?.collapse()
+                  }}
+                  onWizardOpen={() => {
+                    const HEADER_H = 48
+                    const target = Math.min(
+                      600 / (window.innerHeight - HEADER_H) * 100,
+                      75
+                    )
+                    aiPanelRef.current?.resize(target)
                   }}
                 />
               </Panel>

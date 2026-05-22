@@ -1,73 +1,156 @@
 import Link from 'next/link'
 
+const TOOLS = [
+  {
+    id: 'design-system',
+    icon: '✦',
+    name: '设计规范',
+    nameEn: 'DESIGN.md',
+    desc: '支持 AI 编写 DESIGN.md，实时可视化色彩、字体、间距、动效，一键生成 AI Prompt。',
+    features: ['实时预览', '双向定位', 'AI Prompt'],
+    available: true,
+    href: '/editor',
+    cta: '开始使用 →',
+    cardBg: 'linear-gradient(to bottom, #f5c9a0 0%, #aed5cc 50%, #e8b4c4 100%)',
+    textColor: '#0a0a0a',
+    tagBg: 'rgba(10,10,10,0.1)',
+    tagColor: '#0a0a0a',
+    iconBg: 'rgba(10,10,10,0.12)',
+  },
+  {
+    id: 'icon-style',
+    icon: '◈',
+    name: 'Icon 风格',
+    nameEn: 'Icon Style',
+    desc: '描述你的品牌气质，生成一整套风格统一的 SVG 图标，直接导出使用。',
+    features: ['风格定义', 'SVG 导出', '批量生成'],
+    available: false,
+    href: null,
+    cta: '即将上线',
+    cardBg: '#f5f0e0',
+    textColor: '#6a6a6a',
+    tagBg: 'rgba(10,10,10,0.06)',
+    tagColor: '#9a9a9a',
+    iconBg: 'rgba(10,10,10,0.06)',
+  },
+  {
+    id: 'illustration',
+    icon: '❋',
+    name: '插图风格',
+    nameEn: 'Illustration',
+    desc: '上传参考插图，提取风格 DNA，生成与品牌一致的全新插图素材。',
+    features: ['风格提取', '批量生成', '品牌一致'],
+    available: false,
+    href: null,
+    cta: '即将上线',
+    cardBg: '#f5f0e0',
+    textColor: '#6a6a6a',
+    tagBg: 'rgba(10,10,10,0.06)',
+    tagColor: '#9a9a9a',
+    iconBg: 'rgba(10,10,10,0.06)',
+  },
+]
+
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-neutral-50 to-indigo-50/30 flex flex-col">
+    <main
+      className="min-h-screen flex flex-col"
+      style={{
+        backgroundColor: 'var(--canvas)',
+        backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.09) 1px, transparent 1px)',
+        backgroundSize: '24px 24px',
+      }}
+    >
       {/* Nav */}
-      <nav className="h-14 flex items-center px-8 border-b border-neutral-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <span className="text-base font-bold text-neutral-900">TasteDNA</span>
-        <div className="flex-1" />
-        <Link
-          href="/editor"
-          className="text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
-        >
-          打开编辑器 →
-        </Link>
+      <nav style={{ backgroundColor: 'var(--canvas)', borderBottom: '1px solid var(--hairline)' }}
+        className="h-16 flex items-center px-8 sticky top-0 z-10 backdrop-blur-sm">
+        <div className="flex items-baseline gap-2.5">
+          <span className="text-base font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
+            TasteDNA
+          </span>
+          <span className="text-xs" style={{ color: 'var(--muted)' }}>设计师 AI 工具箱</span>
+        </div>
       </nav>
 
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-xs font-medium text-indigo-600 mb-6">
-          ✦ 为 AI 时代的设计师而生
+      <section className="flex flex-col items-center pt-20 pb-16 px-6 text-center">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium tracking-wide mb-8"
+          style={{ backgroundColor: 'var(--surface-card)', color: 'var(--muted)', border: '1px solid var(--hairline)' }}>
+          <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--brand-ochre)' }} />
+          为 AI 时代的设计师而生
         </div>
 
-        <h1 className="text-5xl font-extrabold text-neutral-900 leading-tight max-w-2xl mb-6">
+        <h1 className="display text-[56px] mb-5 max-w-2xl" style={{ color: 'var(--ink)', lineHeight: 1.2 }}>
           把设计直觉<br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">
-            翻译成 AI 能读懂的语言
-          </span>
+          翻译成 AI 能读懂的语言
         </h1>
 
-        <p className="text-lg text-neutral-500 max-w-xl mb-10 leading-relaxed">
-          编写 DESIGN.md，实时看到色彩、字体、间距、动效的完整可视化。
-          点击任意元素定位到代码，一键生成 AI Prompt，把设计风格分享给同事。
+        <p className="text-base leading-relaxed whitespace-nowrap" style={{ color: 'var(--muted)', fontWeight: 400 }}>
+          一套 AI 原生的设计语言工具，帮你定义、沉淀和传递品牌风格。
         </p>
-
-        <div className="flex items-center gap-4">
-          <Link
-            href="/editor"
-            className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors shadow-lg shadow-indigo-200"
-          >
-            从模板开始 →
-          </Link>
-        </div>
       </section>
 
-      {/* Feature grid */}
-      <section className="max-w-4xl mx-auto px-6 pb-20 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-        {[
-          {
-            icon: '◉',
-            title: '实时可视化',
-            desc: '颜色、字体、间距、阴影、动效，所有 token 即写即见。',
-          },
-          {
-            icon: '↕',
-            title: '双向定位',
-            desc: '点击色块跳到对应 markdown 行，改代码实时刷新预览。',
-          },
-          {
-            icon: '⌘',
-            title: '一键 AI Prompt',
-            desc: '自动提取设计语言摘要，直接粘贴给任何 AI 开始 vibecoding。',
-          },
-        ].map((f) => (
-          <div key={f.title} className="rounded-2xl bg-white border border-neutral-200 p-6">
-            <div className="text-2xl text-indigo-400 mb-3">{f.icon}</div>
-            <h3 className="text-sm font-semibold text-neutral-800 mb-1">{f.title}</h3>
-            <p className="text-xs text-neutral-500 leading-relaxed">{f.desc}</p>
-          </div>
-        ))}
+      {/* Tool cards */}
+      <section className="flex-1 mx-auto px-6 pb-24 w-full" style={{ maxWidth: '960px' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {TOOLS.map((tool) => (
+            <div key={tool.id} className="relative flex flex-col p-8"
+              style={{
+                background: tool.cardBg,
+                borderRadius: '24px',
+                opacity: tool.available ? 1 : 0.7,
+              }}>
+
+              {!tool.available && (
+                <span className="absolute top-5 right-5 text-[10px] font-semibold px-2.5 py-1 tracking-wide"
+                  style={{ backgroundColor: 'rgba(10,10,10,0.08)', color: 'var(--muted)', borderRadius: '9999px' }}>
+                  即将上线
+                </span>
+              )}
+
+              <div className="w-10 h-10 flex items-center justify-center text-base mb-5"
+                style={{ backgroundColor: tool.iconBg, borderRadius: '12px', color: tool.textColor }}>
+                {tool.icon}
+              </div>
+
+              <div className="mb-3">
+                <h2 className="text-lg font-semibold" style={{ color: tool.textColor, letterSpacing: '-0.02em' }}>
+                  {tool.name}
+                </h2>
+                <p className="text-[11px] font-mono mt-0.5" style={{ color: tool.available ? 'rgba(10,10,10,0.45)' : 'var(--muted-soft)' }}>
+                  {tool.nameEn}
+                </p>
+              </div>
+
+              <p className="text-xs leading-relaxed mb-6 flex-1" style={{ color: tool.available ? 'rgba(10,10,10,0.6)' : 'var(--muted-soft)' }}>
+                {tool.desc}
+              </p>
+
+              <div className="flex flex-wrap gap-1.5 mb-6">
+                {tool.features.map(f => (
+                  <span key={f} className="text-[10px] font-medium px-2.5 py-1"
+                    style={{ backgroundColor: tool.tagBg, color: tool.tagColor, borderRadius: '9999px' }}>
+                    {f}
+                  </span>
+                ))}
+              </div>
+
+              {tool.available ? (
+                <Link href={tool.href!}
+                  className="w-full text-center py-3 text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{ backgroundColor: 'var(--ink)', color: '#ffffff', borderRadius: '12px' }}>
+                  {tool.cta}
+                </Link>
+              ) : (
+                <button disabled
+                  className="w-full text-center py-3 text-sm font-medium cursor-not-allowed"
+                  style={{ backgroundColor: 'rgba(10,10,10,0.06)', color: 'var(--muted-soft)', borderRadius: '12px' }}>
+                  {tool.cta}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       </section>
     </main>
   )

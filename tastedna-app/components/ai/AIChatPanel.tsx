@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { flushSync } from 'react-dom'
+import TasteGuideWizard from './TasteGuideWizard'
 
 type InputTab = 'text' | 'image' | 'url'
 
@@ -24,6 +25,7 @@ interface Props {
   onApply: (content: string) => void
   collapsed?: boolean
   onToggleCollapse?: () => void
+  onWizardOpen?: () => void
 }
 
 function readFileAsImage(file: File): Promise<ImageItem> {
@@ -39,7 +41,7 @@ function readFileAsImage(file: File): Promise<ImageItem> {
   })
 }
 
-export default function AIChatPanel({ currentContent, onApply, collapsed, onToggleCollapse }: Props) {
+export default function AIChatPanel({ currentContent, onApply, collapsed, onToggleCollapse, onWizardOpen }: Props) {
   const [tab, setTab] = useState<InputTab>('text')
   const [input, setInput] = useState('')
   const [urlInput, setUrlInput] = useState('')
@@ -202,10 +204,50 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
 
   const handleStartGuide = useCallback(() => {
     setGuideMode(true)
-    setMessages([{
-      role: 'assistant',
-      content: '你好！我来帮你找到这个产品的视觉方向。\n\n你脑海里有没有哪个产品或品牌，是你觉得「对了，就是这种感觉」的？不一定是同行业，任何你喜欢的都行。',
-    }])
+    setMessages([])
+    onWizardOpen?.()
+  }, [onWizardOpen])
+
+  const handleWizardGenerate = useCallback(async (prompt: string) => {
+    setMessages([{ role: 'user', content: '（品味引导完成，正在生成 DESIGN.md…）' }])
+    setGenerating(true)
+    abortRef.current = new AbortController()
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'taste-guide', description: prompt }),
+        signal: abortRef.current.signal,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let full = ''
+
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        full += decoder.decode(value, { stream: true })
+        flushSync(() => {
+          setMessages(prev => {
+            const updated = [...prev]
+            updated[updated.length - 1] = { role: 'assistant', content: full }
+            return updated
+          })
+        })
+      }
+
+      setGenerating(false)
+    } catch (e: unknown) {
+      if ((e as Error).name !== 'AbortError') {
+        setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ 生成失败，请重试。' }])
+      }
+      setGenerating(false)
+    }
   }, [])
 
   const handleExitGuide = useCallback(() => {
@@ -232,35 +274,42 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
   const isDesignMD = (content: string) =>
     content.includes('<!-- section:') && content.includes('meta:')
 
+  const showWizard = guideMode && messages.length === 0
+  const showInput = !guideMode || messages.length > 0
+
   return (
-    <div className="flex flex-col h-full bg-white border-t border-neutral-200">
+    <div className="flex flex-col h-full border-t" style={{ backgroundColor: 'var(--canvas)', borderColor: 'var(--hairline)' }}>
+
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 py-2 border-b border-neutral-100 shrink-0 cursor-pointer select-none"
+        className="flex items-center justify-between px-4 py-2 border-b shrink-0 cursor-pointer select-none"
+        style={{ borderColor: 'var(--hairline)' }}
         onClick={onToggleCollapse}
       >
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-indigo-500">✦ AI 助手</span>
+          <span className="text-xs font-semibold" style={{ color: 'var(--ink)' }}>✦ AI 助手</span>
           {!collapsed && messages.length > 0 && (
-            <span className="text-[10px] text-neutral-400">
+            <span className="text-[10px]" style={{ color: 'var(--muted-soft)' }}>
               {messages.filter(m => m.role === 'assistant').length} 次对话
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {!collapsed && guideMode && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 font-medium">品味引导</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'var(--surface-card)', color: 'var(--muted)' }}>品味引导</span>
           )}
-          {!collapsed && messages.length > 0 && (
+          {!collapsed && (guideMode || messages.length > 0) && (
             <button
               onClick={(e) => { e.stopPropagation(); guideMode ? handleExitGuide() : setMessages([]) }}
-              className="text-[10px] text-neutral-400 hover:text-neutral-600 transition-colors"
+              className="text-[10px] transition-colors"
+              style={{ color: 'var(--muted-soft)' }}
             >
-              {guideMode ? '退出引导' : '清空'}
+              {guideMode ? (messages.length > 0 ? '退出引导' : '取消') : '清空'}
             </button>
           )}
           <svg
-            className={`w-3.5 h-3.5 text-neutral-400 transition-transform ${collapsed ? 'rotate-180' : ''}`}
+            className={`w-3.5 h-3.5 transition-transform ${collapsed ? 'rotate-180' : ''}`}
+            style={{ color: 'var(--muted-soft)' }}
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -268,264 +317,278 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-4">
-            {/* 从 0 开始 — 引导模式入口 */}
-            <button
-              onClick={handleStartGuide}
-              className="w-full max-w-[200px] flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50 hover:border-indigo-300 transition-colors group"
-            >
-              <span className="text-base">✦</span>
-              <span className="text-[11px] font-semibold text-indigo-600">从 0 开始</span>
-              <span className="text-[10px] text-indigo-400 leading-snug">通过对话发现产品视觉 DNA<br/>直接生成 DESIGN.md</span>
-            </button>
-
-            <div className="flex items-center gap-2 w-full max-w-[220px]">
-              <div className="flex-1 h-px bg-neutral-100" />
-              <span className="text-[10px] text-neutral-300">或直接描述</span>
-              <div className="flex-1 h-px bg-neutral-100" />
-            </div>
-
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {['蓝色调 SaaS，干净现代', '暖橙色餐饮 App', '深色科技游戏平台', '极简黑白设计工具'].map(ex => (
-                <button key={ex} onClick={() => { setTab('text'); setInput(ex) }}
-                  className="text-[10px] px-2.5 py-1 rounded-full bg-neutral-100 hover:bg-indigo-50 hover:text-indigo-600 text-neutral-500 transition-colors">
-                  {ex}
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {showWizard ? (
+          <TasteGuideWizard onGenerate={handleWizardGenerate} />
+        ) : (
+          <div className="px-4 py-3 space-y-3">
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-4">
+                <button
+                  onClick={handleStartGuide}
+                  className="flex items-start gap-2 px-4 py-2.5 rounded-lg border transition-opacity hover:opacity-70"
+                  style={{ backgroundColor: 'var(--surface-card)', borderColor: 'var(--hairline)' }}
+                >
+                  <span className="text-[12px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>✦</span>
+                  <div className="text-left">
+                    <div className="text-[12px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>从 0 开始</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: 'var(--muted)' }}>6 步生成 DESIGN.md</div>
+                  </div>
                 </button>
-              ))}
-            </div>
-          </div>
-        )}
+                <div className="flex items-center gap-2 w-full max-w-[220px]">
+                  <div className="flex-1 h-px" style={{ backgroundColor: 'var(--hairline)' }} />
+                  <span className="text-[10px]" style={{ color: 'var(--muted-soft)' }}>或直接描述</span>
+                  <div className="flex-1 h-px" style={{ backgroundColor: 'var(--hairline)' }} />
+                </div>
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {['蓝色调 SaaS，干净现代', '暖橙色餐饮 App', '深色科技游戏平台', '极简黑白设计工具'].map(ex => (
+                    <button key={ex} onClick={() => { setTab('text'); setInput(ex) }}
+                      className="text-[10px] px-2.5 py-1 rounded-full transition-opacity hover:opacity-70"
+                      style={{ backgroundColor: 'var(--surface-card)', color: 'var(--muted)' }}>
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-            {msg.imagePreviews && (
-              <div className="flex gap-1 flex-wrap justify-end">
-                {msg.imagePreviews.map((src, j) => (
-                  <img key={j} src={src} alt="" className="max-h-20 max-w-[120px] rounded-lg border border-neutral-200 object-cover" />
-                ))}
-              </div>
-            )}
-            {msg.urlInfo && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-100 text-[11px] text-neutral-600 max-w-[220px]">
-                <span>🔗</span><span className="truncate">{msg.urlInfo.title || msg.urlInfo.url}</span>
-              </div>
-            )}
-            <div className={`rounded-xl px-3 py-2 text-[12px] leading-relaxed max-w-[85%] ${
-              msg.role === 'user' ? 'bg-indigo-500 text-white' : 'bg-neutral-100 text-neutral-700'
-            }`}>
-              {msg.role === 'assistant' ? (
-                <div>
-                  {guideMode ? (
-                    // Guide mode: readable prose or DESIGN.md card
-                    isDesignMD(msg.content) ? (
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-[10px] font-semibold text-indigo-600">✦ DESIGN.md 已生成</span>
-                        </div>
-                        <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed max-h-28 overflow-y-auto text-neutral-500 mb-2">
-                          {msg.content.slice(0, 300)}{msg.content.length > 300 ? '\n…' : ''}
-                        </pre>
-                        {!generating && (
-                          <button
-                            onClick={() => onApply(msg.content)}
-                            className="w-full text-center text-[11px] font-semibold py-2 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
-                          >
-                            ✦ 写入编辑器
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap text-[12px] leading-relaxed">
-                        {msg.content || <span className="animate-pulse text-neutral-400">思考中…</span>}
-                      </p>
-                    )
-                  ) : (
-                    // Normal mode: monospace code view
-                    <>
-                      <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed max-h-32 overflow-y-auto">
-                        {msg.content
-                          ? msg.content.slice(0, 400) + (msg.content.length > 400 ? '\n…' : '')
-                          : <span className="animate-pulse text-neutral-400">生成中…</span>}
-                      </pre>
-                      {msg.content && !generating && (
-                        <div className="mt-2 flex gap-1.5">
-                          <button
-                            onClick={() => onApply(msg.content)}
-                            className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
-                            title="替换编辑器中的全部内容"
-                          >
-                            覆盖
-                          </button>
-                          <button
-                            onClick={() => {
-                              const sep = currentContent.trimEnd() ? '\n\n' : ''
-                              onApply(currentContent.trimEnd() + sep + msg.content)
-                            }}
-                            className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors"
-                            title="追加到编辑器现有内容末尾"
-                          >
-                            追加
-                          </button>
-                        </div>
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                {msg.imagePreviews && (
+                  <div className="flex gap-1 flex-wrap justify-end">
+                    {msg.imagePreviews.map((src, j) => (
+                      <img key={j} src={src} alt="" className="max-h-20 max-w-[120px] rounded-lg border border-neutral-200 object-cover" />
+                    ))}
+                  </div>
+                )}
+                {msg.urlInfo && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-100 text-[11px] text-neutral-600 max-w-[220px]">
+                    <span>🔗</span><span className="truncate">{msg.urlInfo.title || msg.urlInfo.url}</span>
+                  </div>
+                )}
+                <div
+                  className="rounded-xl px-3 py-2 text-[12px] leading-relaxed max-w-[85%]"
+                  style={msg.role === 'user'
+                    ? { backgroundColor: 'var(--ink)', color: '#ffffff' }
+                    : { backgroundColor: 'var(--surface-card)', color: 'var(--body)' }}
+                >
+                  {msg.role === 'assistant' ? (
+                    <div>
+                      {guideMode ? (
+                        isDesignMD(msg.content) ? (
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className="text-[10px] font-semibold" style={{ color: 'var(--brand-lavender)' }}>✦ DESIGN.md 已生成</span>
+                            </div>
+                            <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed max-h-28 overflow-y-auto mb-2" style={{ color: 'var(--muted)' }}>
+                              {msg.content.slice(0, 300)}{msg.content.length > 300 ? '\n…' : ''}
+                            </pre>
+                            {!generating && (
+                              <button
+                                onClick={() => onApply(msg.content)}
+                                className="w-full text-center text-[11px] font-semibold py-2 rounded-lg transition-opacity hover:opacity-80"
+                                style={{ backgroundColor: 'var(--ink)', color: '#ffffff' }}
+                              >
+                                ✦ 写入编辑器
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap text-[12px] leading-relaxed">
+                            {msg.content || <span className="animate-pulse" style={{ color: 'var(--muted-soft)' }}>思考中…</span>}
+                          </p>
+                        )
+                      ) : (
+                        <>
+                          <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed max-h-32 overflow-y-auto">
+                            {msg.content
+                              ? msg.content.slice(0, 400) + (msg.content.length > 400 ? '\n…' : '')
+                              : <span className="animate-pulse" style={{ color: 'var(--muted-soft)' }}>生成中…</span>}
+                          </pre>
+                          {msg.content && !generating && (
+                            <div className="mt-2 flex gap-1.5">
+                              <button
+                                onClick={() => onApply(msg.content)}
+                                className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                                style={{ backgroundColor: 'var(--ink)', color: '#ffffff' }}
+                                title="替换编辑器中的全部内容"
+                              >
+                                覆盖
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const sep = currentContent.trimEnd() ? '\n\n' : ''
+                                  onApply(currentContent.trimEnd() + sep + msg.content)
+                                }}
+                                className="flex-1 text-center text-[11px] font-medium py-1.5 rounded-lg transition-opacity hover:opacity-70"
+                                style={{ backgroundColor: 'var(--surface-strong)', color: 'var(--body)' }}
+                                title="追加到编辑器现有内容末尾"
+                              >
+                                追加
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
-                    </>
+                    </div>
+                  ) : (
+                    <span>{msg.content}</span>
                   )}
                 </div>
-              ) : (
-                <span>{msg.content}</span>
-              )}
-            </div>
-          </div>
-        ))}
+              </div>
+            ))}
 
-        {generating && messages[messages.length - 1]?.role !== 'assistant' && (
-          <div className="flex items-start">
-            <div className="rounded-xl px-3 py-2 bg-neutral-100 text-[11px] text-neutral-400 animate-pulse">生成中…</div>
+            {generating && messages[messages.length - 1]?.role !== 'assistant' && (
+              <div className="flex items-start">
+                <div className="rounded-xl px-3 py-2 text-[11px] animate-pulse" style={{ backgroundColor: 'var(--surface-card)', color: 'var(--muted-soft)' }}>生成中…</div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input area */}
-      <div className="shrink-0 border-t border-neutral-100 px-3 pt-2 pb-3">
-        {/* Tabs — hidden in guide mode */}
-        {!guideMode && (
-          <div className="flex gap-1 mb-2">
-            {(['text', 'image', 'url'] as InputTab[]).map(t => (
-              <button key={t} onClick={() => setTab(t)}
-                className={`text-[11px] px-2.5 py-1 rounded-md transition-colors font-medium ${
-                  tab === t ? 'bg-indigo-500 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
-                }`}>
-                {t === 'text' ? '📝 文字' : t === 'image' ? '🖼️ 图片' : '🔗 网址'}
-              </button>
-            ))}
-            {messages.length > 0 && (
-              <span className="ml-auto text-[10px] text-neutral-400 self-center">可继续对话优化</span>
-            )}
-          </div>
-        )}
-
-        {/* Guide mode: simple chat input */}
-        {guideMode && (
-          <div className="relative mb-1">
-            <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder="回复 AI… （回车发送，Shift+回车换行）"
-              className="w-full text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 pt-2 pb-8 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
-              disabled={generating} />
-            <button onClick={handleSend} disabled={!canSend}
-              className="absolute bottom-3 right-3 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
-              style={{ backgroundColor: '#4F6EF7' }}>
-              {generating ? '…' : '发送'}
-            </button>
-          </div>
-        )}
-
-        {/* Text */}
-        {!guideMode && tab === 'text' && (
-          <div className="relative">
-            <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder={messages.length > 0 ? '继续优化… （回车发送，Shift+回车换行）' : '描述你的产品风格… （回车发送，Shift+回车换行）'}
-              className="w-full text-xs text-neutral-800 placeholder-neutral-400 border border-neutral-200 rounded-lg px-3 pt-2 pb-8 resize-none focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 h-16"
-              disabled={generating} />
-            <button onClick={handleSend} disabled={!canSend}
-              className="absolute bottom-3 right-3 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-colors"
-              style={{ backgroundColor: '#4F6EF7' }}>
-              {generating ? '…' : '发送'}
-            </button>
-          </div>
-        )}
-
-        {/* Image */}
-        {!guideMode && tab === 'image' && (
-          <div className="space-y-2">
-            {/* Drop zone */}
-            <div
-              ref={dropZoneRef}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${
-                isDragging ? 'border-indigo-400 bg-indigo-50' : 'border-neutral-200 hover:border-indigo-300'
-              }`}
-            >
-              {images.length > 0 ? (
-                <div className="flex gap-2 flex-wrap justify-center" onClick={e => e.stopPropagation()}>
-                  {images.map((img, i) => (
-                    <div key={i} className="relative group">
-                      <img src={img.preview} alt="" className="h-16 w-16 object-cover rounded-lg border border-neutral-200" />
-                      <button
-                        onClick={() => removeImage(i)}
-                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-neutral-800 text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      >✕</button>
-                    </div>
-                  ))}
-                  {images.length < 4 && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="h-16 w-16 rounded-lg border-2 border-dashed border-neutral-200 hover:border-indigo-300 text-neutral-400 text-xl flex items-center justify-center transition-colors"
-                    >+</button>
-                  )}
-                </div>
-              ) : (
-                <div className="py-1">
-                  <p className="text-[11px] text-neutral-400">点击上传 / 拖入 / ⌘V 粘贴</p>
-                  <p className="text-[10px] text-neutral-300 mt-0.5">支持多张，最多 8 张</p>
-                </div>
+      {showInput && (
+        <div className="shrink-0 border-t px-3 pt-2 pb-3" style={{ borderColor: 'var(--hairline)' }}>
+          {!guideMode && (
+            <div className="flex gap-1 mb-2">
+              {(['text', 'image', 'url'] as InputTab[]).map(t => (
+                <button key={t} onClick={() => setTab(t)}
+                  className="text-[11px] px-2.5 py-1 rounded-md transition-opacity font-medium"
+                  style={tab === t
+                    ? { backgroundColor: 'var(--ink)', color: '#ffffff' }
+                    : { backgroundColor: 'var(--surface-card)', color: 'var(--muted)' }}>
+                  {t === 'text' ? '📝 文字' : t === 'image' ? '🖼️ 图片' : '🔗 网址'}
+                </button>
+              ))}
+              {messages.length > 0 && (
+                <span className="ml-auto text-[10px] self-center" style={{ color: 'var(--muted-soft)' }}>可继续对话优化</span>
               )}
             </div>
-            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileInput} />
-            <div className="flex gap-2">
-              <input value={input} onChange={e => setInput(e.target.value)} placeholder="补充说明（可选）"
-                className="flex-1 text-xs border border-neutral-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-400"
+          )}
+
+          {guideMode && (
+            <div className="relative mb-1">
+              <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                placeholder="回复 AI… （回车发送，Shift+回车换行）"
+                className="w-full text-xs border rounded-lg px-3 pt-2 pb-8 resize-none focus:outline-none h-16"
+                style={{ backgroundColor: 'var(--canvas)', borderColor: 'var(--hairline)', color: 'var(--body-strong)' }}
                 disabled={generating} />
               <button onClick={handleSend} disabled={!canSend}
-                className="px-3 rounded-lg text-xs font-medium text-white h-8 disabled:opacity-40"
-                style={{ backgroundColor: '#4F6EF7' }}>
-                分析
+                className="absolute bottom-3 right-3 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--ink)' }}>
+                {generating ? '…' : '发送'}
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* URL */}
-        {!guideMode && tab === 'url' && (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input value={urlInput} onChange={e => { setUrlInput(e.target.value); setUrlData(null) }}
-                onKeyDown={e => e.key === 'Enter' && handleFetchUrl()}
-                placeholder="https://example.com"
-                className="flex-1 text-xs border border-neutral-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-400 font-mono"
-                disabled={urlLoading || generating} />
-              <button onClick={handleFetchUrl} disabled={!urlInput.trim() || urlLoading}
-                className="px-3 rounded-lg text-xs font-medium bg-neutral-100 hover:bg-neutral-200 text-neutral-600 h-8 disabled:opacity-40">
-                {urlLoading ? '…' : '抓取'}
+          {!guideMode && tab === 'text' && (
+            <div className="relative">
+              <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                placeholder={messages.length > 0 ? '继续优化… （回车发送，Shift+回车换行）' : '描述你的产品风格… （回车发送，Shift+回车换行）'}
+                className="w-full text-xs border rounded-lg px-3 pt-2 pb-8 resize-none focus:outline-none h-16"
+                style={{ backgroundColor: 'var(--canvas)', borderColor: 'var(--hairline)', color: 'var(--body-strong)' }}
+                disabled={generating} />
+              <button onClick={handleSend} disabled={!canSend}
+                className="absolute bottom-3 right-3 px-2.5 py-1 rounded-md text-[11px] font-medium text-white disabled:opacity-40 transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--ink)' }}>
+                {generating ? '…' : '发送'}
               </button>
             </div>
-            {urlData && !urlData.error && (
-              <div className="text-[10px] text-neutral-500 bg-neutral-50 rounded-lg px-3 py-2">
-                ✓ 已提取 {(urlData.colors as string[])?.length ?? 0} 个色值、{(urlData.fonts as string[])?.length ?? 0} 个字体
-                {urlData.title ? `（${urlData.title}）` : ''}
+          )}
+
+          {!guideMode && tab === 'image' && (
+            <div className="space-y-2">
+              <div
+                ref={dropZoneRef}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors"
+                style={{ borderColor: isDragging ? 'var(--brand-lavender)' : 'var(--hairline)', backgroundColor: isDragging ? 'var(--surface-soft)' : 'transparent' }}
+              >
+                {images.length > 0 ? (
+                  <div className="flex gap-2 flex-wrap justify-center" onClick={e => e.stopPropagation()}>
+                    {images.map((img, i) => (
+                      <div key={i} className="relative group">
+                        <img src={img.preview} alt="" className="h-16 w-16 object-cover rounded-lg border" style={{ borderColor: 'var(--hairline)' }} />
+                        <button onClick={() => removeImage(i)}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          style={{ backgroundColor: 'var(--ink)' }}>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    {images.length < 4 && (
+                      <button onClick={() => fileInputRef.current?.click()}
+                        className="h-16 w-16 rounded-lg border-2 border-dashed text-xl flex items-center justify-center transition-colors"
+                        style={{ borderColor: 'var(--hairline)', color: 'var(--muted-soft)' }}>
+                        +
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-1">
+                    <p className="text-[11px]" style={{ color: 'var(--muted)' }}>点击上传 / 拖入 / ⌘V 粘贴</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted-soft)' }}>支持多张，最多 8 张</p>
+                  </div>
+                )}
               </div>
-            )}
-            {!!urlData?.error && <p className="text-[10px] text-red-500">⚠ {String(urlData.error)}</p>}
-            <div className="flex gap-2">
-              <input value={input} onChange={e => setInput(e.target.value)} placeholder="补充说明（可选）"
-                className="flex-1 text-xs border border-neutral-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-400"
-                disabled={generating} />
-              <button onClick={handleSend} disabled={!canSend}
-                className="px-3 rounded-lg text-xs font-medium text-white h-8 disabled:opacity-40"
-                style={{ backgroundColor: '#4F6EF7' }}>
-                生成
-              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileInput} />
+              <div className="flex gap-2">
+                <input value={input} onChange={e => setInput(e.target.value)} placeholder="补充说明（可选）"
+                  className="flex-1 text-xs border rounded-lg px-3 py-1.5 focus:outline-none"
+                  style={{ backgroundColor: 'var(--canvas)', borderColor: 'var(--hairline)', color: 'var(--body-strong)' }}
+                  disabled={generating} />
+                <button onClick={handleSend} disabled={!canSend}
+                  className="px-3 rounded-lg text-xs font-medium text-white h-8 disabled:opacity-40 transition-opacity hover:opacity-80"
+                  style={{ backgroundColor: 'var(--ink)' }}>
+                  分析
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-      </div>
+          {!guideMode && tab === 'url' && (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input value={urlInput} onChange={e => { setUrlInput(e.target.value); setUrlData(null) }}
+                  onKeyDown={e => e.key === 'Enter' && handleFetchUrl()}
+                  placeholder="https://example.com"
+                  className="flex-1 text-xs border rounded-lg px-3 py-1.5 focus:outline-none font-mono"
+                  style={{ backgroundColor: 'var(--canvas)', borderColor: 'var(--hairline)', color: 'var(--body-strong)' }}
+                  disabled={urlLoading || generating} />
+                <button onClick={handleFetchUrl} disabled={!urlInput.trim() || urlLoading}
+                  className="px-3 rounded-lg text-xs font-medium h-8 disabled:opacity-40 transition-opacity hover:opacity-70"
+                  style={{ backgroundColor: 'var(--surface-card)', color: 'var(--body)' }}>
+                  {urlLoading ? '…' : '抓取'}
+                </button>
+              </div>
+              {urlData && !urlData.error && (
+                <div className="text-[10px] rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--surface-soft)', color: 'var(--muted)' }}>
+                  ✓ 已提取 {(urlData.colors as string[])?.length ?? 0} 个色值、{(urlData.fonts as string[])?.length ?? 0} 个字体
+                  {urlData.title ? `（${urlData.title}）` : ''}
+                </div>
+              )}
+              {!!urlData?.error && <p className="text-[10px] text-red-500">⚠ {String(urlData.error)}</p>}
+              <div className="flex gap-2">
+                <input value={input} onChange={e => setInput(e.target.value)} placeholder="补充说明（可选）"
+                  className="flex-1 text-xs border rounded-lg px-3 py-1.5 focus:outline-none"
+                  style={{ backgroundColor: 'var(--canvas)', borderColor: 'var(--hairline)', color: 'var(--body-strong)' }}
+                  disabled={generating} />
+                <button onClick={handleSend} disabled={!canSend}
+                  className="px-3 rounded-lg text-xs font-medium text-white h-8 disabled:opacity-40 transition-opacity hover:opacity-80"
+                  style={{ backgroundColor: 'var(--ink)' }}>
+                  分析
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -44,6 +44,7 @@ const TASTE_GUIDE_SYSTEM = `你是 TasteDNA 设计系统编辑器内置的产品
 ## 生成 DESIGN.md
 当用户确认 DNA（说"对""准确""好""可以"等）后，立即生成完整 DESIGN.md。
 只输出原始 markdown，不加代码围栏，不加额外说明文字。
+必须输出所有 section，组件部分必须包含以下所有组件，不得省略。
 
 严格遵循以下格式：
 ---
@@ -63,43 +64,110 @@ meta:
 - primary: #XXXXXX  // 品牌主色
 - secondary: #XXXXXX  // 辅助色
 - accent: #XXXXXX  // 强调色
+- surface: #XXXXXX  // 表面/背景色
 
 ### neutral
 <!-- type: color-scale -->
 - 50: #FAFAFA  // 最浅背景
 - 100: #F5F5F5  // 卡片背景
 - 200: #E5E5E5  // 分割线
+- 300: #D4D4D4  // 禁用描边
+- 400: #A3A3A3  // placeholder
 - 500: #737373  // 次要文字
+- 700: #404040  // 辅助文字
 - 900: #171717  // 主要文字
+
+### semantic
+<!-- type: color-group -->
+- success: #XXXXXX  // 成功/正向
+- warning: #XXXXXX  // 警告
+- error: #XXXXXX  // 错误/危险
+- info: #XXXXXX  // 信息提示
 
 ## typography
 <!-- section: typography -->
 
 ### scale
 <!-- type: scale -->
-- xs: 11px/1.5  // 辅助说明
-- sm: 13px/1.6  // 辅助文字
+- xs: 11px/1.5  // 标注、辅助说明
+- sm: 13px/1.6  // 辅助文字、标签
 - base: 15px/1.7  // 正文
 - lg: 18px/1.4  // 小标题
 - xl: 24px/1.3  // 标题
-- 2xl: 36px/1.1  // 大标题
+- 2xl: 32px/1.2  // 大标题
+- 3xl: 48px/1.1  // 展示标题
 
 ### fonts
 <!-- type: font-list -->
-- sans: "Inter", system-ui  // 界面字体
-- mono: "JetBrains Mono", monospace  // 等宽
+- sans: "Inter", system-ui  // 界面主字体
+- serif: "Georgia", serif  // 正文/内容字体（如适用）
+- mono: "JetBrains Mono", monospace  // 代码/数值
+
+### weight
+<!-- type: scale -->
+- regular: 400  // 正文
+- medium: 500  // 强调
+- semibold: 600  // 标题
+- bold: 700  // 重点标题
 
 ## spacing
 <!-- section: spacing -->
 
 ### scale
 <!-- type: scale -->
+- 0.5: 2px  // 微间距
 - 1: 4px  // 最小
 - 2: 8px  // 紧凑
+- 3: 12px  // 小
 - 4: 16px  // 基础
 - 6: 24px  // 中等
 - 8: 32px  // 大
+- 10: 40px  // 较大
 - 12: 48px  // 版块
+- 16: 64px  // 大版块
+- 24: 96px  // 页面留白
+
+## radius
+<!-- section: radius -->
+
+### scale
+<!-- type: scale -->
+- none: 0px  // 无圆角
+- sm: 4px  // 小元素
+- md: 8px  // 默认
+- lg: 12px  // 卡片
+- xl: 16px  // 大卡片
+- 2xl: 24px  // 特殊元素
+- full: 9999px  // 胶囊/圆形
+
+## shadows
+<!-- section: shadows -->
+
+### scale
+<!-- type: shadow-scale -->
+- xs: 0 1px 2px rgba(0,0,0,0.05)  // 微阴影
+- sm: 0 2px 8px rgba(0,0,0,0.08)  // 卡片
+- md: 0 4px 16px rgba(0,0,0,0.12)  // 悬浮卡片
+- lg: 0 8px 32px rgba(0,0,0,0.16)  // 模态框
+- xl: 0 16px 48px rgba(0,0,0,0.20)  // 菜单/弹出层
+
+## motion
+<!-- section: motion -->
+
+### easing
+<!-- type: easing-group -->
+- ease-in: cubic-bezier(0.4, 0, 1, 1)  // 退出动画
+- ease-out: cubic-bezier(0, 0, 0.2, 1)  // 进入动画
+- ease-in-out: cubic-bezier(0.4, 0, 0.2, 1)  // 状态切换
+- spring: cubic-bezier(0.34, 1.56, 0.64, 1)  // 弹性交互
+
+### duration
+<!-- type: scale -->
+- instant: 80ms  // 即时反馈
+- fast: 150ms  // 微交互/hover
+- normal: 250ms  // 默认过渡
+- slow: 350ms  // 复杂动画
+- page: 500ms  // 页面级过渡
 
 ## components
 <!-- section: components -->
@@ -107,23 +175,258 @@ meta:
 ### 按钮
 <!-- type: component-spec -->
 #### 变体
-- primary: 主要按钮  // [色彩描述]
-- secondary: 次要按钮  // [描述]
+- primary: 主要按钮  // [主色填充，核心操作]
+- secondary: 次要按钮  // [弱填充或描边，辅助操作]
 - ghost: 幽灵按钮  // 透明背景+描边
+- danger: 危险按钮  // 红色，破坏性操作
+- link: 链接按钮  // 无背景无描边，纯文字
 #### 尺寸
-- sm: height 28px  // 紧凑场景
-- md: height 36px  // 默认
-- lg: height 44px  // 强调场景
+- sm: height 28px, px 12px  // 紧凑/表格内
+- md: height 36px, px 16px  // 默认
+- lg: height 44px, px 20px  // 强调/表单提交
+- xl: height 52px, px 24px  // 落地页 CTA
 #### 状态
-- hover: [hover 描述]
+- hover: [背景/颜色变化描述]
+- active: [按下反馈]
 - disabled: opacity 0.4，cursor not-allowed
+- loading: spinner 替换文字，禁用点击
+
+### 输入框
+<!-- type: component-spec -->
+#### 变体
+- default: 默认输入框  // [描边风格描述]
+- filled: 填充型  // [背景色描述]
+- underline: 下划线型  // 仅底部描边
+#### 尺寸
+- sm: height 28px  // 紧凑
+- md: height 36px  // 默认
+- lg: height 44px  // 突出场景
+#### 状态
+- focus: [focus ring/描边变化描述]
+- error: 红色描边+错误提示文字
+- success: 绿色描边+成功反馈
+- disabled: opacity 0.4，背景变灰
+
+### 选择器
+<!-- type: component-spec -->
+#### 变体
+- select: 单选下拉  // [触发器样式]
+- multi-select: 多选  // 已选项以标签展示
+- combobox: 可搜索下拉  // 内置搜索输入
+#### 状态
+- open: 下拉展开，触发器高亮
+- disabled: opacity 0.4
+
+### 复选与开关
+<!-- type: component-spec -->
+#### 变体
+- checkbox: 方形复选框  // [选中色描述]
+- radio: 圆形单选框  // [选中色描述]
+- switch: 滑动开关  // [开/关色描述]
+#### 状态
+- checked: [选中填充描述]
+- indeterminate: 半选（仅 checkbox）
+- disabled: opacity 0.4
+
+### 卡片
+<!-- type: component-spec -->
+#### 变体
+- default: 默认卡片  // [背景、阴影描述]
+- elevated: 悬浮卡片  // 更深阴影，无描边
+- outlined: 描边卡片  // 无阴影+描边
+- interactive: 可点击卡片  // hover 有上浮+阴影增强
+- flat: 扁平卡片  // 无阴影无描边，纯背景色区分
+#### 区域
+- header: 头部，标题+操作区
+- body: 主体内容区，padding 16-24px
+- footer: 底部，次要信息或操作
+
+### 徽标与标签
+<!-- type: component-spec -->
+#### 变体
+- default: 默认  // [中性色描述]
+- primary: 品牌色标签
+- success: 成功/绿
+- warning: 警告/黄
+- danger: 错误/红
+- outline: 描边型，无背景
+- dot: 圆点+文字  // 状态指示
+#### 尺寸
+- sm: height 18px, text 11px  // 角标
+- md: height 22px, text 12px  // 默认
+- lg: height 28px, text 13px  // 突出
+
+### 头像
+<!-- type: component-spec -->
+#### 变体
+- image: 图片头像  // 圆形/方形裁切
+- initials: 文字首字母  // [背景色规则]
+- icon: 图标占位  // [图标+背景描述]
+- group: 头像组  // 叠加排列，最多显示N个
+#### 尺寸
+- xs: 20px  // 极紧凑
+- sm: 28px  // 列表
+- md: 36px  // 默认
+- lg: 48px  // 个人页小图
+- xl: 64px  // 个人页大图
+- 2xl: 96px  // 详情页
+
+### 提示与通知
+<!-- type: component-spec -->
+#### 变体
+- toast: 浮动通知  // 右上角，3s 自动消失
+- alert: 内嵌警告  // 页面内常驻
+- banner: 顶部全宽通知  // 重要公告
+- callout: 内容区提示块  // 文档/说明场景
+#### 语义
+- info: 信息，蓝色
+- success: 成功，绿色
+- warning: 警告，黄色
+- error: 错误，红色
+#### 元素
+- icon: 左侧语义图标
+- title: 标题（可选）
+- description: 正文
+- action: 操作链接（可选）
+- close: 关闭按钮（可选）
+
+### 模态框与弹层
+<!-- type: component-spec -->
+#### 变体
+- dialog: 确认对话框  // 居中，遮罩背景
+- sheet: 底部弹出  // 移动端，从下滑入
+- drawer: 侧边抽屉  // 左或右，覆盖式
+- popover: 气泡弹层  // 锚定触发元素
+#### 尺寸（dialog）
+- sm: max-width 400px  // 确认框
+- md: max-width 560px  // 表单
+- lg: max-width 720px  // 复杂内容
+- full: 100vw 100vh  // 全屏
+#### 状态
+- overlay: 遮罩，[透明度/颜色描述]
+- enter: [进入动画描述]
+- exit: [退出动画描述]
+
+### 导航
+<!-- type: component-spec -->
+#### 变体
+- topbar: 顶部导航栏  // height 56-64px，[背景描述]
+- sidebar: 侧边导航  // width 240-280px，[背景描述]
+- bottom-nav: 移动端底部导航  // height 56px，5个以内
+- breadcrumb: 面包屑  // 分隔符+层级
+#### 元素
+- logo: 品牌标识区，左侧
+- nav-item: 导航项，[选中/hover 样式]
+- actions: 右侧操作区（搜索/通知/头像）
+- collapse: 侧边栏折叠，width 64px 图标模式
+
+### 标签页
+<!-- type: component-spec -->
+#### 变体
+- line: 下划线型  // 当前页底部高亮线
+- pill: 胶囊型  // 当前页填充背景
+- card: 卡片型  // 独立卡片感，带描边
+- vertical: 垂直标签  // 左侧导航场景
+#### 状态
+- active: [选中样式，颜色/字重变化]
+- hover: hover 反馈
+- disabled: opacity 0.4
+
+### 下拉菜单
+<!-- type: component-spec -->
+#### 变体
+- dropdown: 常规下拉菜单  // [阴影/背景描述]
+- context-menu: 右键菜单
+- command: 命令面板  // 带搜索，全局快捷入口
+#### 元素
+- item: 菜单项，height 32px，px 12px
+- item-icon: 左侧图标（可选）
+- item-shortcut: 右侧快捷键提示
+- divider: 分割线
+- group-header: 分组标题，text-xs 大写
+
+### 表格
+<!-- type: component-spec -->
+#### 变体
+- default: 默认表格  // [行高、描边描述]
+- bordered: 完整格线
+- striped: 斑马纹，[奇偶行色差]
+- compact: 紧凑，row-height 32px
+#### 元素
+- th: 表头，[背景色、字重、排序图标]
+- td: 单元格，padding 12px 16px
+- row-hover: [hover 背景色描述]
+- row-selected: [选中背景色描述]
+#### 功能
+- sortable: 可排序列，点击切换方向
+- selectable: 行复选框
+- sticky-header: 滚动时表头吸顶
+
+### 进度与加载
+<!-- type: component-spec -->
+#### 变体
+- progress-bar: 横向进度条  // [高度、颜色、圆角描述]
+- progress-ring: 环形进度  // SVG 圆环
+- skeleton: 骨架屏  // [动画：shimmer 或 pulse]
+- spinner: 旋转加载  // [尺寸、颜色描述]
+- dots: 三点跳动  // 等待/输入中
+#### 状态
+- determinate: 有具体进度值
+- indeterminate: 无限循环
+
+### 工具提示
+<!-- type: component-spec -->
+#### 变体
+- tooltip: 悬停提示  // 单行简短文字，[背景色描述]
+- popover: 点击气泡  // 富内容，有标题和正文
+#### 属性
+- placement: top / bottom / left / right / auto
+- arrow: 带指向箭头
+- delay: hover 后 200-300ms 显示，避免误触
+- max-width: tooltip 200px，popover 300px
+
+### 分页
+<!-- type: component-spec -->
+#### 变体
+- default: 页码列表  // [选中页样式]
+- simple: 上一页/下一页  // 移动端常用
+- mini: 极简"1/24"文字型
+#### 元素
+- prev/next: 前后翻页按钮
+- page-item: 单页码，[选中填充或下划线]
+- ellipsis: 省略号
+- page-size: 每页条数选择器（可选）
+
+### 搜索框
+<!-- type: component-spec -->
+#### 变体
+- inline: 内嵌搜索框  // 普通输入框加搜索图标
+- overlay: 全局搜索  // 覆盖式，居中，Command+K 唤起
+- instant: 实时搜索  // 输入即触发，带结果下拉
+#### 元素
+- prefix-icon: 放大镜图标
+- clear: 一键清空按钮
+- shortcut: 快捷键提示（如⌘K）
+- results-dropdown: 搜索结果下拉列表
+
+### 表单布局
+<!-- type: component-spec -->
+#### 变体
+- vertical: 垂直表单  // label 在上，input 在下
+- horizontal: 水平表单  // label 在左，固定宽度
+- inline: 内联表单  // 同行排列，紧凑
+#### 元素
+- label: 字段标签，[字号、颜色、必填星号]
+- helper: 辅助说明文字，[字号、颜色]
+- error-msg: 错误提示，红色，[位置]
+- field-group: 多字段一行（如 姓名+姓氏）
 
 ## brand
 <!-- section: brand -->
 
 ### ai-prompt
 <!-- type: ai-prompt -->
-[用英文描述视觉风格，可直接用于 Midjourney/DALL-E]
+[用英文描述视觉风格，可直接用于 Midjourney/DALL-E，100词以内]
 
 ### personality
 <!-- type: list -->
@@ -131,7 +434,7 @@ meta:
 - [气质词2]
 - [气质词3]
 
-重要：根据用户描述的审美推断具体色值，不要询问颜色。ai-prompt 字段必须用英文。`
+重要：根据用户描述的审美推断具体色值，不要询问颜色。ai-prompt 字段必须用英文。所有组件的描述和注释必须与整体设计风格保持一致，体现品味差异化。`
 
 const FORMAT_RULES = `
 STRICT DESIGN.MD FORMAT — follow exactly:

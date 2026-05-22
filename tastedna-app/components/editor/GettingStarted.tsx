@@ -54,11 +54,11 @@ export default function GettingStarted({ onLoadStarter }: Props) {
       <div className="max-w-lg mx-auto px-8 py-12">
         {/* Hero */}
         <div className="text-center mb-10">
-          <div className="text-4xl mb-4">◎</div>
-          <h2 className="text-xl font-bold text-neutral-800 mb-2">
+          <div className="text-4xl mb-4" style={{ color: 'var(--muted)' }}>◎</div>
+          <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--ink)', letterSpacing: '-0.02em' }}>
             {zh ? '开始你的第一份 DESIGN.md' : 'Start your first DESIGN.md'}
           </h2>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>
             {zh
               ? 'TasteDNA 使用一种结构化的 Markdown 格式，在左侧编写，右侧实时渲染为视觉预览。'
               : 'TasteDNA uses a structured Markdown format. Write on the left, see the visual preview on the right in real time.'}
@@ -68,28 +68,26 @@ export default function GettingStarted({ onLoadStarter }: Props) {
         {/* Load starter button */}
         <button
           onClick={() => onLoadStarter(STARTER_TEMPLATE)}
-          className="w-full mb-10 py-3 rounded-xl text-sm font-medium transition-colors"
-          style={{ backgroundColor: '#4F6EF715', color: '#4F6EF7' }}
-          onMouseOver={e => (e.currentTarget.style.backgroundColor = '#4F6EF725')}
-          onMouseOut={e => (e.currentTarget.style.backgroundColor = '#4F6EF715')}
+          className="w-full mb-10 py-3 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+          style={{ backgroundColor: 'var(--ink)', color: '#ffffff' }}
         >
           {zh ? '⚡ 加载入门模板，快速开始' : '⚡ Load starter template'}
         </button>
 
         {/* Syntax guide */}
-        <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--muted-soft)' }}>
           {zh ? '语法速查' : 'Syntax reference'}
         </h3>
 
         <div className="space-y-4">
           {syntaxBlocks.map((block) => (
-            <div key={block.title} className="rounded-xl border border-neutral-100 overflow-hidden">
-              <div className="px-4 py-2 bg-neutral-50 border-b border-neutral-100">
-                <p className="text-xs font-medium text-neutral-500">
+            <div key={block.title} className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--hairline)' }}>
+              <div className="px-4 py-2 border-b" style={{ backgroundColor: 'var(--surface-soft)', borderColor: 'var(--hairline)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
                   {zh ? block.title : block.titleEn}
                 </p>
               </div>
-              <pre className="px-4 py-3 text-xs font-mono text-neutral-700 leading-relaxed overflow-x-auto bg-white">
+              <pre className="px-4 py-3 text-xs font-mono leading-relaxed overflow-x-auto" style={{ backgroundColor: 'var(--canvas)', color: 'var(--body)' }}>
                 {block.code}
               </pre>
             </div>
@@ -97,11 +95,11 @@ export default function GettingStarted({ onLoadStarter }: Props) {
         </div>
 
         {/* Tips */}
-        <div className="mt-8 p-4 rounded-xl bg-amber-50 border border-amber-100">
-          <p className="text-xs font-semibold text-amber-700 mb-2">
+        <div className="mt-8 p-4 rounded-xl border" style={{ backgroundColor: 'var(--surface-card)', borderColor: 'var(--hairline)' }}>
+          <p className="text-xs font-semibold mb-2" style={{ color: 'var(--brand-ochre)' }}>
             {zh ? '💡 小技巧' : '💡 Tips'}
           </p>
-          <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
+          <ul className="text-xs space-y-1 list-disc list-inside" style={{ color: 'var(--muted)' }}>
             <li>{zh ? '点击右侧色块可跳转到对应行' : 'Click a swatch to jump to its line in the editor'}</li>
             <li>{zh ? 'Hover 色块后点 ✎ 可直接选色' : 'Hover a swatch and click ✎ to pick a color'}</li>
             <li>{zh ? '顶部"插入模块"可快速添加各种区块' : 'Use "Insert Block" in the header to add sections quickly'}</li>
