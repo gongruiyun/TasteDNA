@@ -3,6 +3,110 @@
 import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 
+// ── SVG style extractor ──────────────────────────────────────────────────────
+
+function extractStyleFromSVG(svgText: string): Partial<IconSpec> {
+  if (typeof window === 'undefined') return {}
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(svgText, 'image/svg+xml')
+  const svg = doc.querySelector('svg')
+  if (!svg || doc.querySelector('parsererror')) return {}
+
+  const result: Partial<IconSpec> = {}
+
+  // Grid size from viewBox
+  const vb = svg.getAttribute('viewBox')?.trim().split(/[\s,]+/)
+  if (vb && vb.length >= 4) {
+    const w = parseFloat(vb[2]), h = parseFloat(vb[3])
+    const size = Math.round((w + h) / 2)
+    const snap = ([16, 20, 24, 32] as GridSize[]).reduce((a, b) =>
+      Math.abs(b - size) < Math.abs(a - size) ? b : a)
+    result.gridSize = snap
+  }
+
+  // Collect per-element attributes
+  const els = Array.from(doc.querySelectorAll('path,line,polyline,polygon,rect,circle,ellipse,g'))
+  const strokeWidths: number[] = []
+  const linecaps: string[] = []
+  let totalFilled = 0, totalStroked = 0
+
+  const resolveAttr = (el: Element, attr: string): string => {
+    let val = el.getAttribute(attr)
+    if (!val) {
+      let p: Element | null = el.parentElement
+      while (p && p !== svg) { val = p.getAttribute(attr); if (val) break; p = p.parentElement }
+    }
+    return val || svg.getAttribute(attr) || ''
+  }
+
+  els.forEach(el => {
+    const sw = parseFloat(el.getAttribute('stroke-width') || '')
+    if (!isNaN(sw) && sw > 0) strokeWidths.push(sw)
+
+    const slc = el.getAttribute('stroke-linecap')
+    if (slc) linecaps.push(slc)
+
+    const fill = resolveAttr(el, 'fill')
+    const stroke = resolveAttr(el, 'stroke')
+    const hasFill = fill && fill !== 'none'
+    const hasStroke = stroke && stroke !== 'none'
+    if (hasFill) totalFilled++
+    if (hasStroke) totalStroked++
+  })
+
+  // Determine style
+  if (totalStroked > 0 && totalFilled === 0) result.style = 'outline'
+  else if (totalFilled > 0 && totalStroked === 0) result.style = 'filled'
+  else if (totalFilled > 0 && totalStroked > 0) result.style = 'duotone'
+
+  // Stroke weight → snap to nearest valid value
+  if (strokeWidths.length > 0) {
+    const avg = strokeWidths.reduce((a, b) => a + b, 0) / strokeWidths.length
+    const snap = ([1, 1.5, 2, 2.5] as StrokeWeight[]).reduce((a, b) =>
+      Math.abs(b - avg) < Math.abs(a - avg) ? b : a)
+    result.strokeWeight = snap
+  }
+
+  // Linecap
+  if (linecaps.length > 0) {
+    result.cap = linecaps.includes('round') ? 'round' : 'square'
+  }
+
+  // Corner radius from rect rx
+  const rxVals: number[] = []
+  doc.querySelectorAll('rect').forEach(r => {
+    const rx = parseFloat(r.getAttribute('rx') || '')
+    if (!isNaN(rx)) rxVals.push(rx)
+  })
+  if (rxVals.length > 0) {
+    const avgRx = rxVals.reduce((a, b) => a + b, 0) / rxVals.length
+    const gs = result.gridSize ?? 24
+    const ratio = avgRx / gs
+    result.corner = ratio < 0.04 ? 'sharp' : ratio < 0.13 ? 'subtle' : 'round'
+  }
+
+  return result
+}
+
+function mergeExtracted(specs: Partial<IconSpec>[]): Partial<IconSpec> {
+  if (specs.length === 0) return {}
+  // Vote on each field — most common value wins
+  const vote = <T>(vals: T[]): T | undefined => {
+    const map = new Map<string, number>()
+    vals.forEach(v => { const k = String(v); map.set(k, (map.get(k) ?? 0) + 1) })
+    let best: T | undefined, bestN = 0
+    vals.forEach(v => { const n = map.get(String(v)) ?? 0; if (n > bestN) { bestN = n; best = v } })
+    return best
+  }
+  return {
+    style: vote(specs.map(s => s.style).filter(Boolean) as Style[]),
+    gridSize: vote(specs.map(s => s.gridSize).filter(Boolean) as GridSize[]),
+    strokeWeight: vote(specs.map(s => s.strokeWeight).filter(Boolean) as StrokeWeight[]),
+    cap: vote(specs.map(s => s.cap).filter(Boolean) as Cap[]),
+    corner: vote(specs.map(s => s.corner).filter(Boolean) as Corner[]),
+  }
+}
+
 type Style = 'outline' | 'filled' | 'duotone'
 type GridSize = 16 | 20 | 24 | 32
 type StrokeWeight = 1 | 1.5 | 2 | 2.5
@@ -134,7 +238,45 @@ export default function IconPage() {
   const [icons, setIcons] = useState<IconItem[]>([])
   const [generating, setGenerating] = useState(false)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([])
+  const [extracting, setExtracting] = useState(false)
+  const [extractDone, setExtractDone] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  const handleSVGFiles = useCallback(async (files: FileList | File[]) => {
+    const svgFiles = Array.from(files).filter(f =>
+      f.name.toLowerCase().endsWith('.svg') || f.type === 'image/svg+xml'
+    ).slice(0, 8)
+    if (!svgFiles.length) return
+
+    setExtracting(true)
+    setExtractDone(false)
+
+    const texts = await Promise.all(svgFiles.map(f => f.text()))
+    const extracted = texts.map(extractStyleFromSVG)
+    const merged = mergeExtracted(extracted)
+
+    setSpec(prev => ({ ...prev, ...Object.fromEntries(
+      Object.entries(merged).filter(([, v]) => v !== undefined)
+    ) }))
+    setUploadedFiles(svgFiles.map(f => f.name))
+    setExtracting(false)
+    setExtractDone(true)
+    setTimeout(() => setExtractDone(false), 3000)
+  }, [])
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) handleSVGFiles(e.target.files)
+    e.target.value = ''
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    if (e.dataTransfer.files.length) handleSVGFiles(e.dataTransfer.files)
+  }
 
   const parsedNames = namesInput
     .split(/[\n,]+/)
@@ -286,6 +428,73 @@ export default function IconPage() {
             padding: '20px 16px',
           }}
         >
+          {/* Upload zone */}
+          <div style={{ marginBottom: '20px' }}>
+            <span style={SECTION_LABEL}>从参考图提取风格</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".svg,image/svg+xml"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handleFileInput}
+            />
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDrop={handleDrop}
+              onDragOver={e => { e.preventDefault(); setIsDragOver(true) }}
+              onDragLeave={() => setIsDragOver(false)}
+              style={{
+                border: `1.5px dashed ${isDragOver ? 'var(--ink)' : 'var(--hairline)'}`,
+                borderRadius: '10px',
+                padding: '12px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                backgroundColor: isDragOver ? 'var(--surface-card)' : 'var(--canvas)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {extracting ? (
+                <p style={{ fontSize: '11px', color: 'var(--muted)' }}>分析中…</p>
+              ) : extractDone ? (
+                <p style={{ fontSize: '11px', color: 'var(--ink)', fontWeight: 600 }}>
+                  ✓ 风格已提取
+                </p>
+              ) : (
+                <>
+                  <p style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '2px' }}>
+                    上传 SVG 图标参考
+                  </p>
+                  <p style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>
+                    点击或拖拽，最多 8 个
+                  </p>
+                </>
+              )}
+            </div>
+            {uploadedFiles.length > 0 && !extracting && (
+              <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                {uploadedFiles.map(name => (
+                  <span key={name} style={{
+                    fontSize: '10px', color: 'var(--muted)',
+                    backgroundColor: 'var(--surface-card)',
+                    border: '1px solid var(--hairline)',
+                    borderRadius: '4px', padding: '2px 6px',
+                    maxWidth: '120px', overflow: 'hidden',
+                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {name}
+                  </span>
+                ))}
+                <button
+                  onClick={() => { setUploadedFiles([]); setExtractDone(false) }}
+                  style={{ fontSize: '10px', color: 'var(--muted-soft)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                >
+                  清除
+                </button>
+              </div>
+            )}
+          </div>
+
           <ChipGroup
             label="风格类型"
             options={[
