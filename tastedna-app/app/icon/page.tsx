@@ -248,7 +248,7 @@ export default function IconPage() {
   const handleSVGFiles = useCallback(async (files: FileList | File[]) => {
     const svgFiles = Array.from(files).filter(f =>
       f.name.toLowerCase().endsWith('.svg') || f.type === 'image/svg+xml'
-    ).slice(0, 8)
+    ).slice(0, 20)
     if (!svgFiles.length) return
 
     setExtracting(true)
@@ -466,7 +466,7 @@ export default function IconPage() {
                     上传 SVG 图标参考
                   </p>
                   <p style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>
-                    点击或拖拽，最多 8 个
+                    点击或拖拽，最多 20 个
                   </p>
                 </>
               )}
