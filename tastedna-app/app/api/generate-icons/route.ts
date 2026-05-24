@@ -28,7 +28,11 @@ function getCornerRadius(corner: Corner, gridSize: number): number {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const { spec, names }: { spec: IconSpec; names: string[] } = body
+  const { spec, names, refImages }: {
+    spec: IconSpec
+    names: string[]
+    refImages?: { base64: string; mime: string }[]
+  } = body
 
   const { style, gridSize, strokeWeight, cap, corner } = spec
   const styleDesc = getStyleDesc(style)
@@ -57,12 +61,34 @@ OUTPUT — for each icon output EXACTLY this format with no deviations:
 
 Generate all ${names.length} icons sequentially. Be precise and consistent with the style spec.`
 
+  // Build message content — multimodal if ref images provided
+  type ContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string } }
+
+  const userContent: ContentPart[] = []
+
+  if (refImages && refImages.length > 0) {
+    refImages.forEach(img => {
+      userContent.push({
+        type: 'image_url',
+        image_url: { url: `data:${img.mime};base64,${img.base64}` },
+      })
+    })
+    userContent.push({
+      type: 'text',
+      text: prompt + '\n\nNote: The reference images above show the visual style and icon subjects you should follow. Use them as inspiration for both style and content.',
+    })
+  } else {
+    userContent.push({ type: 'text', text: prompt })
+  }
+
   const requestBody = JSON.stringify({
     model: ARK_MODEL,
     max_tokens: 8192,
     stream: true,
     messages: [
-      { role: 'user', content: prompt },
+      { role: 'user', content: refImages?.length ? userContent : prompt },
     ],
   })
 

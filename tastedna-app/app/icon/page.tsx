@@ -232,50 +232,70 @@ ${symbols}
 </svg>`
 }
 
+interface RefImage { name: string; base64: string; mime: string; preview: string }
+
+function readFileAsBase64(file: File): Promise<RefImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      const dataUrl = e.target?.result as string
+      resolve({ name: file.name, base64: dataUrl.split(',')[1], mime: file.type, preview: dataUrl })
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function IconPage() {
   const [spec, setSpec] = useState<IconSpec>(DEFAULT_SPEC)
   const [namesInput, setNamesInput] = useState(DEFAULT_NAMES)
   const [icons, setIcons] = useState<IconItem[]>([])
   const [generating, setGenerating] = useState(false)
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([])
+  const [uploadedSVGs, setUploadedSVGs] = useState<string[]>([])
+  const [refImages, setRefImages] = useState<RefImage[]>([])
   const [extracting, setExtracting] = useState(false)
   const [extractDone, setExtractDone] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [copiedName, setCopiedName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  const handleSVGFiles = useCallback(async (files: FileList | File[]) => {
-    const svgFiles = Array.from(files).filter(f =>
-      f.name.toLowerCase().endsWith('.svg') || f.type === 'image/svg+xml'
-    ).slice(0, 20)
-    if (!svgFiles.length) return
+  const handleFiles = useCallback(async (files: FileList | File[]) => {
+    const all = Array.from(files).slice(0, 20)
+    const svgFiles = all.filter(f => f.name.toLowerCase().endsWith('.svg') || f.type === 'image/svg+xml')
+    const imgFiles = all.filter(f => f.type.startsWith('image/') && !f.type.includes('svg'))
 
-    setExtracting(true)
-    setExtractDone(false)
+    // SVG → extract style
+    if (svgFiles.length > 0) {
+      setExtracting(true)
+      setExtractDone(false)
+      const texts = await Promise.all(svgFiles.map(f => f.text()))
+      const merged = mergeExtracted(texts.map(extractStyleFromSVG))
+      setSpec(prev => ({ ...prev, ...Object.fromEntries(
+        Object.entries(merged).filter(([, v]) => v !== undefined)
+      )}))
+      setUploadedSVGs(svgFiles.map(f => f.name))
+      setExtracting(false)
+      setExtractDone(true)
+      setTimeout(() => setExtractDone(false), 3000)
+    }
 
-    const texts = await Promise.all(svgFiles.map(f => f.text()))
-    const extracted = texts.map(extractStyleFromSVG)
-    const merged = mergeExtracted(extracted)
-
-    setSpec(prev => ({ ...prev, ...Object.fromEntries(
-      Object.entries(merged).filter(([, v]) => v !== undefined)
-    ) }))
-    setUploadedFiles(svgFiles.map(f => f.name))
-    setExtracting(false)
-    setExtractDone(true)
-    setTimeout(() => setExtractDone(false), 3000)
+    // Images → store as base64 visual reference
+    if (imgFiles.length > 0) {
+      const loaded = await Promise.all(imgFiles.slice(0, 6).map(readFileAsBase64))
+      setRefImages(prev => [...prev, ...loaded].slice(0, 6))
+    }
   }, [])
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) handleSVGFiles(e.target.files)
+    if (e.target.files?.length) handleFiles(e.target.files)
     e.target.value = ''
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
-    if (e.dataTransfer.files.length) handleSVGFiles(e.dataTransfer.files)
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files)
   }
 
   const parsedNames = namesInput
@@ -309,7 +329,12 @@ export default function IconPage() {
       const res = await fetch('/api/generate-icons', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spec, names }),
+        body: JSON.stringify({
+          spec, names,
+          refImages: refImages.length > 0
+            ? refImages.map(i => ({ base64: i.base64, mime: i.mime }))
+            : undefined,
+        }),
         signal: controller.signal,
       })
 
@@ -357,8 +382,11 @@ export default function IconPage() {
     URL.revokeObjectURL(url)
   }
 
-  const handleCopyIcon = (svg: string) => {
-    navigator.clipboard.writeText(svg).catch(() => {})
+  const handleCopyIcon = (svg: string, name: string) => {
+    navigator.clipboard.writeText(svg).then(() => {
+      setCopiedName(name)
+      setTimeout(() => setCopiedName(null), 2000)
+    }).catch(() => {})
   }
 
   const handleDownloadIcon = (name: string, svg: string) => {
@@ -430,15 +458,18 @@ export default function IconPage() {
         >
           {/* Upload zone */}
           <div style={{ marginBottom: '20px' }}>
-            <span style={SECTION_LABEL}>从参考图提取风格</span>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".svg,image/svg+xml"
-              multiple
-              style={{ display: 'none' }}
-              onChange={handleFileInput}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ ...SECTION_LABEL, marginBottom: 0 }}>从参考图提取风格</span>
+              {(uploadedSVGs.length > 0 || refImages.length > 0) && (
+                <button onClick={() => { setUploadedSVGs([]); setRefImages([]); setExtractDone(false) }}
+                  style={{ fontSize: '10px', color: 'var(--muted-soft)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  清除
+                </button>
+              )}
+            </div>
+            <input ref={fileInputRef} type="file"
+              accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif"
+              multiple style={{ display: 'none' }} onChange={handleFileInput} />
             <div
               onClick={() => fileInputRef.current?.click()}
               onDrop={handleDrop}
@@ -446,51 +477,70 @@ export default function IconPage() {
               onDragLeave={() => setIsDragOver(false)}
               style={{
                 border: `1.5px dashed ${isDragOver ? 'var(--ink)' : 'var(--hairline)'}`,
-                borderRadius: '10px',
-                padding: '12px',
-                textAlign: 'center',
+                borderRadius: '10px', padding: '12px', textAlign: 'center',
                 cursor: 'pointer',
                 backgroundColor: isDragOver ? 'var(--surface-card)' : 'var(--canvas)',
                 transition: 'all 0.15s',
               }}
             >
               {extracting ? (
-                <p style={{ fontSize: '11px', color: 'var(--muted)' }}>分析中…</p>
+                <p style={{ fontSize: '11px', color: 'var(--muted)' }}>分析样式中…</p>
               ) : extractDone ? (
-                <p style={{ fontSize: '11px', color: 'var(--ink)', fontWeight: 600 }}>
-                  ✓ 风格已提取
-                </p>
+                <p style={{ fontSize: '11px', color: 'var(--ink)', fontWeight: 600 }}>✓ SVG 样式已提取</p>
               ) : (
                 <>
                   <p style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '2px' }}>
-                    上传 SVG 图标参考
+                    上传参考图 / SVG
                   </p>
                   <p style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>
-                    点击或拖拽，最多 20 个
+                    PNG · JPG · SVG，最多 20 个
                   </p>
                 </>
               )}
             </div>
-            {uploadedFiles.length > 0 && !extracting && (
+
+            {/* Image thumbnails */}
+            {refImages.length > 0 && (
+              <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                {refImages.map((img, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.preview} alt={img.name}
+                      style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--hairline)' }} />
+                    <button
+                      onClick={e => { e.stopPropagation(); setRefImages(prev => prev.filter((_, j) => j !== i)) }}
+                      style={{
+                        position: 'absolute', top: '-4px', right: '-4px',
+                        width: '14px', height: '14px', borderRadius: '50%',
+                        backgroundColor: 'var(--ink)', color: '#fff',
+                        border: 'none', cursor: 'pointer', fontSize: '9px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        lineHeight: 1,
+                      }}>×</button>
+                  </div>
+                ))}
+                <div style={{ fontSize: '10px', color: 'var(--muted-soft)', alignSelf: 'center', marginLeft: '2px' }}>
+                  {refImages.length} 张参考图
+                </div>
+              </div>
+            )}
+
+            {/* SVG file names */}
+            {uploadedSVGs.length > 0 && !extracting && (
               <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {uploadedFiles.map(name => (
+                {uploadedSVGs.slice(0, 4).map(name => (
                   <span key={name} style={{
                     fontSize: '10px', color: 'var(--muted)',
-                    backgroundColor: 'var(--surface-card)',
-                    border: '1px solid var(--hairline)',
+                    backgroundColor: 'var(--surface-card)', border: '1px solid var(--hairline)',
                     borderRadius: '4px', padding: '2px 6px',
-                    maxWidth: '120px', overflow: 'hidden',
-                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {name}
-                  </span>
+                    maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{name}</span>
                 ))}
-                <button
-                  onClick={() => { setUploadedFiles([]); setExtractDone(false) }}
-                  style={{ fontSize: '10px', color: 'var(--muted-soft)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                >
-                  清除
-                </button>
+                {uploadedSVGs.length > 4 && (
+                  <span style={{ fontSize: '10px', color: 'var(--muted-soft)', alignSelf: 'center' }}>
+                    +{uploadedSVGs.length - 4}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -641,123 +691,60 @@ export default function IconPage() {
               </p>
             </div>
           ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '12px',
-              }}
-            >
-              {icons.map((icon, idx) => (
-                <div
-                  key={icon.name}
-                  onMouseEnter={() => setHoveredIndex(idx)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                  style={{
-                    position: 'relative',
-                    backgroundColor: 'var(--surface-card)',
-                    border: '1px solid var(--hairline)',
-                    borderRadius: '12px',
-                    padding: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '8px',
-                    minHeight: '88px',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {/* Icon area */}
-                  <div
-                    style={{
-                      width: '48px',
-                      height: '48px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--ink)',
-                    }}
-                  >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              {icons.map((icon) => (
+                <div key={icon.name} style={{
+                  backgroundColor: 'var(--surface-card)',
+                  border: '1px solid var(--hairline)',
+                  borderRadius: '12px',
+                  padding: '12px 10px 10px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+                }}>
+                  {/* Icon preview */}
+                  <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)' }}>
                     {icon.svg ? (
-                      <div
-                        style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        dangerouslySetInnerHTML={{ __html: icon.svg }}
-                      />
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        dangerouslySetInnerHTML={{ __html: icon.svg }} />
                     ) : (
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          backgroundColor: 'var(--hairline)',
-                          borderRadius: '6px',
-                          animation: 'pulse 1.5s ease-in-out infinite',
-                        }}
-                      />
+                      <div style={{ width: '28px', height: '28px', backgroundColor: 'var(--hairline)', borderRadius: '6px', animation: 'pulse 1.5s ease-in-out infinite' }} />
                     )}
                   </div>
 
                   {/* Name */}
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      fontFamily: 'monospace',
-                      color: 'var(--muted)',
-                      textAlign: 'center',
-                      lineHeight: 1.3,
-                    }}
-                  >
+                  <span style={{ fontSize: '9px', fontFamily: 'monospace', color: 'var(--muted)', textAlign: 'center', lineHeight: 1.3, wordBreak: 'break-all' }}>
                     {icon.name}
                   </span>
 
-                  {/* Hover overlay */}
-                  {hoveredIndex === idx && icon.svg && (
-                    <div
+                  {/* Action buttons — always visible */}
+                  <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: '2px' }}>
+                    <button
+                      onClick={() => icon.svg && handleCopyIcon(icon.svg, icon.name)}
+                      disabled={!icon.svg}
                       style={{
-                        position: 'absolute',
-                        inset: 0,
-                        backgroundColor: 'rgba(255,250,240,0.92)',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
+                        flex: 1, fontSize: '10px', fontWeight: 500,
+                        padding: '4px 0', borderRadius: '6px', cursor: icon.svg ? 'pointer' : 'not-allowed',
+                        backgroundColor: copiedName === icon.name ? 'var(--brand-mint)' : 'var(--canvas)',
+                        color: copiedName === icon.name ? 'var(--ink)' : 'var(--muted)',
+                        border: '1px solid var(--hairline)',
+                        opacity: icon.svg ? 1 : 0.4, transition: 'all 0.15s',
                       }}
                     >
-                      <button
-                        onClick={() => handleCopyIcon(icon.svg!)}
-                        style={{
-                          backgroundColor: 'var(--ink)',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '5px 12px',
-                          fontSize: '11px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          width: '80px',
-                        }}
-                      >
-                        复制
-                      </button>
-                      <button
-                        onClick={() => handleDownloadIcon(icon.name, icon.svg!)}
-                        style={{
-                          backgroundColor: 'var(--canvas)',
-                          color: 'var(--body)',
-                          border: '1px solid var(--hairline)',
-                          borderRadius: '6px',
-                          padding: '5px 12px',
-                          fontSize: '11px',
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          width: '80px',
-                        }}
-                      >
-                        ↓ SVG
-                      </button>
-                    </div>
-                  )}
+                      {copiedName === icon.name ? '✓' : '复制'}
+                    </button>
+                    <button
+                      onClick={() => icon.svg && handleDownloadIcon(icon.name, icon.svg)}
+                      disabled={!icon.svg}
+                      style={{
+                        flex: 1, fontSize: '10px', fontWeight: 500,
+                        padding: '4px 0', borderRadius: '6px', cursor: icon.svg ? 'pointer' : 'not-allowed',
+                        backgroundColor: 'var(--canvas)', color: 'var(--muted)',
+                        border: '1px solid var(--hairline)',
+                        opacity: icon.svg ? 1 : 0.4, transition: 'all 0.15s',
+                      }}
+                    >
+                      ↓ SVG
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
