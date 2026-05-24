@@ -91,7 +91,7 @@ function extractStyleFromSVG(svgText: string): Partial<IconSpec> {
 function mergeExtracted(specs: Partial<IconSpec>[]): Partial<IconSpec> {
   if (specs.length === 0) return {}
   // Vote on each field — most common value wins
-  const vote = <T>(vals: T[]): T | undefined => {
+  const vote = <T,>(vals: T[]): T | undefined => {
     const map = new Map<string, number>()
     vals.forEach(v => { const k = String(v); map.set(k, (map.get(k) ?? 0) + 1) })
     let best: T | undefined, bestN = 0
