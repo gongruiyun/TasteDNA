@@ -5,9 +5,10 @@ import type { TokenNode } from '@/lib/parser/types'
 interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
+  cssVarMap?: Record<string, string[]>
 }
 
-export default function GradientRenderer({ tokens, onTokenClick }: Props) {
+export default function GradientRenderer({ tokens, onTokenClick, cssVarMap }: Props) {
   return (
     <div className="flex flex-wrap gap-4">
       {tokens.map((token) => (
@@ -23,6 +24,9 @@ export default function GradientRenderer({ tokens, onTokenClick }: Props) {
           />
           <div className="text-left">
             <p className="text-xs font-medium text-neutral-700">{token.name}</p>
+            {cssVarMap?.[token.name]?.[0] && (
+              <p className="text-[10px] font-mono text-indigo-300">{cssVarMap[token.name][0]}</p>
+            )}
             {token.zh && <p className="text-[10px] text-neutral-400">{token.zh}</p>}
           </div>
         </button>

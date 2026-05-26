@@ -5,6 +5,7 @@ import type { TokenNode } from '@/lib/parser/types'
 interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
+  cssVarMap?: Record<string, string[]>
 }
 
 function parseTypeToken(value: string): { size: string; lineHeight: string; weight: string } {
@@ -26,7 +27,7 @@ const weightName: Record<string, string> = {
   '800': 'ExtraBold',
 }
 
-export default function TypeScaleRenderer({ tokens, onTokenClick }: Props) {
+export default function TypeScaleRenderer({ tokens, onTokenClick, cssVarMap }: Props) {
   return (
     <div className="space-y-1 divide-y divide-neutral-100">
       {tokens.map((token) => {
@@ -52,6 +53,11 @@ export default function TypeScaleRenderer({ tokens, onTokenClick }: Props) {
             </span>
             {token.zh && (
               <span className="text-[11px] text-neutral-400 shrink-0 hidden sm:block">{token.zh}</span>
+            )}
+            {cssVarMap?.[token.name] && (
+              <span className="text-[10px] font-mono text-indigo-300 shrink-0 hidden sm:block">
+                {cssVarMap[token.name].join(' · ')}
+              </span>
             )}
           </button>
         )

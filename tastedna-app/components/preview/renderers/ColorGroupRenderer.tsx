@@ -8,6 +8,7 @@ interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
   onTokenColorChange?: (line: number, color: string) => void
+  cssVarMap?: Record<string, string[]>
 }
 
 function isLight(hex: string): boolean {
@@ -31,10 +32,11 @@ function toHex6(hex: string): string {
   return hex.startsWith('#') && clean.length === 6 ? hex : '#000000'
 }
 
-function ColorSwatch({ token, onTokenClick, onTokenColorChange }: {
+function ColorSwatch({ token, onTokenClick, onTokenColorChange, cssVarMap }: {
   token: TokenNode
   onTokenClick?: (line: number) => void
   onTokenColorChange?: (line: number, color: string) => void
+  cssVarMap?: Record<string, string[]>
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const { t } = useLanguage()
@@ -42,6 +44,7 @@ function ColorSwatch({ token, onTokenClick, onTokenColorChange }: {
 
   return (
     <div
+      data-line={token.line}
       className="group flex flex-col gap-2 cursor-pointer hover:scale-105 transition-transform"
       onClick={() => onTokenClick?.(token.line)}
     >
@@ -74,12 +77,15 @@ function ColorSwatch({ token, onTokenClick, onTokenColorChange }: {
         {token.zh && (
           <p className="text-[10px] text-neutral-400 mt-0.5 max-w-[64px] leading-tight">{token.zh}</p>
         )}
+        {cssVarMap?.[token.name]?.[0] && (
+          <p className="text-[10px] font-mono text-indigo-300 mt-0.5 leading-none">{cssVarMap[token.name][0]}</p>
+        )}
       </div>
     </div>
   )
 }
 
-export default function ColorGroupRenderer({ tokens, onTokenClick, onTokenColorChange }: Props) {
+export default function ColorGroupRenderer({ tokens, onTokenClick, onTokenColorChange, cssVarMap }: Props) {
   return (
     <div className="flex flex-wrap gap-3">
       {tokens.map((token) => (
@@ -88,6 +94,7 @@ export default function ColorGroupRenderer({ tokens, onTokenClick, onTokenColorC
           token={token}
           onTokenClick={onTokenClick}
           onTokenColorChange={onTokenColorChange}
+          cssVarMap={cssVarMap}
         />
       ))}
     </div>

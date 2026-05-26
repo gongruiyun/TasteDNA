@@ -33,21 +33,44 @@ export default function PreviewPanel({ ast, onTokenClick, onTokenColorChange, hi
 
   useEffect(() => {
     if (highlightedLine == null || !scrollRef.current) return
-    // Find the deepest section whose start <= cursor (line.end is unreliable in parser)
+
+    // Find the deepest section whose start <= cursor
     let matchedSection = null
     for (const section of ast.sections) {
       if (section.line.start <= highlightedLine) matchedSection = section
       else break
     }
     if (!matchedSection) return
+
     // Find deepest matching subsection
     let targetId = `section-${matchedSection.id}`
     for (const sub of matchedSection.subsections) {
       if (sub.line.start <= highlightedLine) targetId = `subsection-${sub.id}-${matchedSection.id}`
       else break
     }
-    const el = scrollRef.current.querySelector(`#${CSS.escape(targetId)}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+    const container = scrollRef.current.querySelector(`#${CSS.escape(targetId)}`)
+    if (!container) return
+
+    // Token-level: find the [data-line] element whose line is closest to (but not past) cursor
+    const dataLineEls = Array.from(container.querySelectorAll<HTMLElement>('[data-line]'))
+    let bestEl: HTMLElement | null = null
+    let bestLine = -1
+    for (const el of dataLineEls) {
+      const dl = parseInt(el.getAttribute('data-line') ?? '0', 10)
+      if (dl <= highlightedLine && dl > bestLine) {
+        bestLine = dl
+        bestEl = el
+      }
+    }
+
+    if (bestEl) {
+      // 'nearest' = don't scroll if already visible; only nudge if off-screen
+      bestEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    } else {
+      // Fallback to subsection header
+      container.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
   }, [highlightedLine, ast])
 
   if (!ast.sections.length) {
@@ -61,6 +84,7 @@ export default function PreviewPanel({ ast, onTokenClick, onTokenColorChange, hi
 
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto">
+
       {/* Header */}
       <div className="px-8 pt-8 pb-6 border-b border-neutral-100">
         <h1 className="text-2xl font-bold text-neutral-900">
@@ -97,6 +121,7 @@ export default function PreviewPanel({ ast, onTokenClick, onTokenColorChange, hi
                   <div key={`${sub.id}-${subIdx}`} id={`subsection-${sub.id}-${section.id}`}>
                     <SectionBlock
                       subsection={sub}
+                      sectionId={section.id}
                       onTokenClick={onTokenClick}
                       onTokenColorChange={onTokenColorChange}
                     />

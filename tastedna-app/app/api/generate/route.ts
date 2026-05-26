@@ -174,6 +174,8 @@ meta:
 
 ### 按钮
 <!-- type: component-spec -->
+- usage: 主操作入口——表单提交、弹窗确认、页面级主操作；primary 变体每屏最多一个核心动作，secondary/ghost 用于辅助操作
+- prohibited: 不能在表格行内使用 primary 变体；不能并排超过 2 个按钮；不能用 link 变体替代导航链接；danger 仅用于不可逆操作（删除/清空）
 #### 变体
 - primary: 主要按钮  // [主色填充，核心操作]
 - secondary: 次要按钮  // [弱填充或描边，辅助操作]
@@ -181,10 +183,10 @@ meta:
 - danger: 危险按钮  // 红色，破坏性操作
 - link: 链接按钮  // 无背景无描边，纯文字
 #### 尺寸
-- sm: height 28px, px 12px  // 紧凑/表格内
-- md: height 36px, px 16px  // 默认
-- lg: height 44px, px 20px  // 强调/表单提交
-- xl: height 52px, px 24px  // 落地页 CTA
+- sm: height 28px, padding 0 12px  // 紧凑/表格内
+- md: height 36px, padding 0 16px  // 默认
+- lg: height 44px, padding 0 20px  // 强调/表单提交
+- xl: height 52px, padding 0 24px  // 落地页 CTA
 #### 状态
 - hover: [背景/颜色变化描述]
 - active: [按下反馈]
@@ -193,6 +195,8 @@ meta:
 
 ### 输入框
 <!-- type: component-spec -->
+- usage: 单行文本录入——搜索框、表单字段、筛选器；需配合 label 使用，placeholder 仅作补充说明而非替代 label
+- prohibited: 不能省略 label（无障碍要求）；只读展示场景改用纯文本；不能嵌套在 table cell 内直接展示
 #### 变体
 - default: 默认输入框  // [描边风格描述]
 - filled: 填充型  // [背景色描述]
@@ -209,6 +213,8 @@ meta:
 
 ### 选择器
 <!-- type: component-spec -->
+- usage: 有明确选项集合的单选/多选；选项超过 5 个时优先于 radio；combobox 用于选项过多需要搜索的场景
+- prohibited: 选项少于 3 个时改用 radio；不能在 combobox 中省略搜索功能；不能将选择器用于日期/时间（改用 DatePicker）
 #### 变体
 - select: 单选下拉  // [触发器样式]
 - multi-select: 多选  // 已选项以标签展示
@@ -219,6 +225,8 @@ meta:
 
 ### 复选与开关
 <!-- type: component-spec -->
+- usage: 多选用 checkbox，单选用 radio，二元开关用 switch；选项数量 2–6 个时优先使用
+- prohibited: 不能将 radio 与 checkbox 混用在同一选项组；switch 不用于多选场景；不能省略文字 label 仅靠颜色区分状态
 #### 变体
 - checkbox: 方形复选框  // [选中色描述]
 - radio: 圆形单选框  // [选中色描述]
@@ -230,6 +238,8 @@ meta:
 
 ### 卡片
 <!-- type: component-spec -->
+- usage: 内容容器——将同类信息归组展示；适用于列表项、数据摘要、功能入口；可点击时整体作为交互区域
+- prohibited: 不能在 card 内嵌套 card（改用 section 分隔）；不能省略 padding 让内容贴边；card 内不能出现超过 1 个 primary button
 #### 变体
 - default: 默认卡片  // [背景、阴影描述]
 - elevated: 悬浮卡片  // 更深阴影，无描边
@@ -243,6 +253,8 @@ meta:
 
 ### 徽标与标签
 <!-- type: component-spec -->
+- usage: 状态标注和分类标签——badge 用于数量提示（未读数/计数），tag 用于可枚举的内容属性
+- prohibited: 单个元素不能叠加超过 3 个 tag；不能用 tag 替代 button 触发操作；error 变体仅用于真实错误/失败状态
 #### 变体
 - default: 默认  // [中性色描述]
 - primary: 品牌色标签
@@ -258,6 +270,8 @@ meta:
 
 ### 头像
 <!-- type: component-spec -->
+- usage: 用户身份展示——评论列表、消息气泡、个人主页；group 变体用于展示协作者或成员列表
+- prohibited: 有真实头像时不能降级使用 icon 变体；不能脱离用户实体单独使用头像；group 最多叠加展示 4 个，超出显示数字
 #### 变体
 - image: 图片头像  // 圆形/方形裁切
 - initials: 文字首字母  // [背景色规则]
@@ -273,6 +287,8 @@ meta:
 
 ### 提示与通知
 <!-- type: component-spec -->
+- usage: toast 用于操作后的即时反馈（临时），alert 用于页面内常驻警告，banner 用于全局级公告
+- prohibited: 不能用 toast 展示需要用户操作的信息（改用 alert/modal）；同时显示的 toast 不能超过 3 个；不能省略语义图标
 #### 变体
 - toast: 浮动通知  // 右上角，3s 自动消失
 - alert: 内嵌警告  // 页面内常驻
@@ -292,6 +308,8 @@ meta:
 
 ### 模态框与弹层
 <!-- type: component-spec -->
+- usage: 阻断性交互——需用户明确确认或完成独立任务；sm 用于纯确认，md 用于简单表单，lg 用于复杂内容；sheet/drawer 用于移动端
+- prohibited: 不能在 modal 内再打开另一个 modal；不能用 modal 展示纯信息（改用 toast/banner）；不能省略关闭按钮；表单字段不能超过 5 个
 #### 变体
 - dialog: 确认对话框  // 居中，遮罩背景
 - sheet: 底部弹出  // 移动端，从下滑入
@@ -309,6 +327,8 @@ meta:
 
 ### 导航
 <!-- type: component-spec -->
+- usage: 全局路由切换——topbar 用于顶级导航，sidebar 用于多级功能区，breadcrumb 用于层级定位，bottom-nav 用于移动端
+- prohibited: 不能将操作按钮（新建/删除）放入导航 item；sidebar 顶级 item 不能超过 8 个；不能同时使用 topbar 和 sidebar 作为主导航
 #### 变体
 - topbar: 顶部导航栏  // height 56-64px，[背景描述]
 - sidebar: 侧边导航  // width 240-280px，[背景描述]
@@ -322,6 +342,8 @@ meta:
 
 ### 标签页
 <!-- type: component-spec -->
+- usage: 同级内容切换——将同一层级的不同视图组织在一起；line 变体用于大多数场景；tab 数量 2–5 个
+- prohibited: 不能用 tab 做跨层级路由（改用导航）；不能嵌套 tab；不能超过 5 个 tab；tab 切换不触发页面跳转
 #### 变体
 - line: 下划线型  // 当前页底部高亮线
 - pill: 胶囊型  // 当前页填充背景
@@ -334,6 +356,8 @@ meta:
 
 ### 下拉菜单
 <!-- type: component-spec -->
+- usage: 情境操作收纳——操作较多不适合平铺时使用；context-menu 用于右键，command 用于全局快捷操作（⌘K）
+- prohibited: 常用操作不能藏进下拉（应直接展示）；菜单项不能超过 10 个（加分组或搜索）；不能在下拉内嵌套下拉
 #### 变体
 - dropdown: 常规下拉菜单  // [阴影/背景描述]
 - context-menu: 右键菜单
@@ -347,6 +371,8 @@ meta:
 
 ### 表格
 <!-- type: component-spec -->
+- usage: 结构化数据对比展示——多属性并列、批量操作；数据量大时配合分页；sortable 用于需要排序的列
+- prohibited: 移动端不能使用 bordered 变体；表头列数不能超过 8 列（超出考虑横向滚动或隐藏列）；不能在 table cell 内嵌套 table
 #### 变体
 - default: 默认表格  // [行高、描边描述]
 - bordered: 完整格线
@@ -364,6 +390,8 @@ meta:
 
 ### 进度与加载
 <!-- type: component-spec -->
+- usage: spinner 用于局部/按钮内加载，skeleton 用于页面首屏占位，progress-bar 用于有明确进度的任务
+- prohibited: 不能在同一屏同时出现超过 2 种加载形态；不能用 spinner 替代 skeleton 做整页骨架屏；加载超过 3s 必须提供取消入口
 #### 变体
 - progress-bar: 横向进度条  // [高度、颜色、圆角描述]
 - progress-ring: 环形进度  // SVG 圆环
@@ -376,6 +404,8 @@ meta:
 
 ### 工具提示
 <!-- type: component-spec -->
+- usage: tooltip 用于图标/截断文字的单行补充说明（hover 触发），popover 用于需要富内容展示的气泡（点击触发）
+- prohibited: tooltip 不能包含可交互元素（按钮/链接）；不能在移动端依赖 hover tooltip；不能在 tooltip 内展示超过 2 行文字
 #### 变体
 - tooltip: 悬停提示  // 单行简短文字，[背景色描述]
 - popover: 点击气泡  // 富内容，有标题和正文
@@ -387,6 +417,8 @@ meta:
 
 ### 分页
 <!-- type: component-spec -->
+- usage: 数据量超出单页时使用；default 用于精确跳页，simple 用于移动端，mini 用于空间极度受限场景
+- prohibited: 数据量少于 20 条时改用全量展示（不分页）；不能省略总条数信息；不能将分页放在内容中间
 #### 变体
 - default: 页码列表  // [选中页样式]
 - simple: 上一页/下一页  // 移动端常用
@@ -399,6 +431,8 @@ meta:
 
 ### 搜索框
 <!-- type: component-spec -->
+- usage: inline 用于局部/列表内搜索，overlay 用于全局搜索（⌘K 唤起），instant 用于实时过滤列表
+- prohibited: 不能省略清空按钮；全局搜索必须支持键盘导航（↑↓ 选择，Enter 确认）；不能将搜索结果内嵌在触发器元素内
 #### 变体
 - inline: 内嵌搜索框  // 普通输入框加搜索图标
 - overlay: 全局搜索  // 覆盖式，居中，Command+K 唤起
@@ -411,6 +445,8 @@ meta:
 
 ### 表单布局
 <!-- type: component-spec -->
+- usage: vertical 用于大多数表单，horizontal 用于密集配置页，inline 用于筛选条件组；超过 8 个字段考虑分步骤
+- prohibited: 不能在同一表单内混用多种布局风格；不能省略必填标识（* 号）；单步表单字段不能超过 8 个
 #### 变体
 - vertical: 垂直表单  // label 在上，input 在下
 - horizontal: 水平表单  // label 在左，固定宽度
@@ -420,6 +456,32 @@ meta:
 - helper: 辅助说明文字，[字号、颜色]
 - error-msg: 错误提示，红色，[位置]
 - field-group: 多字段一行（如 姓名+姓氏）
+
+## icon-style
+<!-- section: icon-style -->
+
+### specs
+<!-- type: spec -->
+- style:          [线性描边 / 实心填充 / 双色调，根据风格选择]
+- grid:           24×24px 标准，16×16px 小尺寸，32×32px 大尺寸
+- stroke-width:   [1px / 1.5px / 2px，根据风格轻重选择]（24px 网格）
+- stroke-linecap: [round / square，根据风格选择]
+- stroke-linejoin: [round / miter，根据风格选择]
+- padding:        1px 光学安全边距（可用区域 22×22px）
+- color:          currentColor  // 继承父元素颜色，单色
+- usage: 功能性图标——导航、操作按钮、状态提示、表单前缀
+- prohibited: [根据风格填写禁用规则，例如：不能使用实心填充；不能使用阴影或渐变；描边不得超过 2px；16px 以下不使用复杂路径]
+
+### size-usage
+<!-- type: list -->
+- 16px:  面包屑、tag 内图标、行内紧凑图标
+- 20px:  正文旁默认行内图标
+- 24px:  导航图标、按钮前缀图标
+- 32px:  空状态插图、功能入口卡片
+
+### ai-prompt-template
+<!-- type: ai-prompt -->
+SVG [style] icon for {subject}, 24×24 viewBox, 1px padding from edges, stroke-width [width], stroke-linecap [cap], stroke-linejoin [join], fill [fill], monochrome currentColor, [style adjectives] paths, balanced optical weight, no decorative details. Output only raw SVG <path> elements, no wrapper tags.
 
 ## brand
 <!-- section: brand -->
@@ -434,7 +496,7 @@ meta:
 - [气质词2]
 - [气质词3]
 
-重要：根据用户描述的审美推断具体色值，不要询问颜色。ai-prompt 字段必须用英文。所有组件的描述和注释必须与整体设计风格保持一致，体现品味差异化。`
+重要：根据用户描述的审美推断具体色值，不要询问颜色。ai-prompt 字段必须用英文。所有组件的描述和注释必须与整体设计风格保持一致，体现品味差异化。icon-style 的 style/stroke-width/linecap/linejoin 必须与整体风格一致（圆润暖调用 round，精工冷峻用 square/miter）。`
 
 const FORMAT_RULES = `
 STRICT DESIGN.MD FORMAT — follow exactly:
@@ -473,25 +535,29 @@ meta:
 - list          → keywords
 - component-spec→ component with #### sub-groups (variants/sizes/states)
 
-6. component-spec format example:
+6. component-spec format — ALWAYS include usage + prohibited before #### groups:
 ### 按钮
 <!-- type: component-spec -->
+- usage: 主操作入口——表单提交、弹窗确认；primary 变体每屏最多一个核心动作
+- prohibited: 不能在表格行内使用 primary 变体；不能并排超过 2 个按钮；danger 仅用于不可逆操作
 #### 变体
-- primary: 主要按钮 // 蓝色填充，用于核心操作
-- secondary: 次要按钮 // 白色背景+描边
+- primary: 主要按钮 // 品牌色填充，用于核心操作
+- secondary: 次要按钮 // 弱填充，辅助操作
 - danger: 危险按钮 // 红色填充，破坏性操作
 #### 尺寸
-- sm: height 28px // 紧凑场景
-- md: height 36px // 默认
-- lg: height 44px // 强调场景
+- sm: height 28px, padding 0 12px // 紧凑场景
+- md: height 36px, padding 0 16px // 默认
+- lg: height 44px, padding 0 20px // 强调场景
 #### 状态
 - hover: 背景加深 10%
 - disabled: opacity 0.4，cursor not-allowed
 
-7. Required sections: colors (brand + neutral), typography, spacing
-8. Use component-spec (not text) for all ### subsections inside ## components.
-9. Output ONLY raw DESIGN.md. No code fences, no extra text.
-10. Chinese // comments for all tokens.`
+7. Required sections: colors (brand + neutral + semantic), typography, spacing, borders, shadows, motion, components, brand.
+8. Components section MUST include ALL of the following (no exceptions): 按钮, 输入框, 选择器, 复选与开关, 卡片, 徽标与标签, 头像, 提示与通知, 模态框与弹层, 导航, 标签页, 下拉菜单, 表格, 进度与加载, 工具提示, 分页, 搜索框, 表单布局.
+9. Every component-spec MUST have usage and prohibited lines (before any #### groups). No exceptions.
+10. Use component-spec (not text) for all ### subsections inside ## components.
+11. Output ONLY raw DESIGN.md. No code fences, no extra text.
+12. Chinese // comments for all tokens.`
 
 const SYSTEM_PROMPT = `You are a professional design system expert.${FORMAT_RULES}`
 

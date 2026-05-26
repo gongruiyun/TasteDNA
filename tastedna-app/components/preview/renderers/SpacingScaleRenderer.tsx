@@ -5,13 +5,14 @@ import type { TokenNode } from '@/lib/parser/types'
 interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
+  cssVarMap?: Record<string, string[]>
 }
 
 function pxToNumber(value: string): number {
   return parseInt(value.replace('px', ''), 10) || 0
 }
 
-export default function SpacingScaleRenderer({ tokens, onTokenClick }: Props) {
+export default function SpacingScaleRenderer({ tokens, onTokenClick, cssVarMap }: Props) {
   return (
     <div className="space-y-2">
       {tokens.map((token) => {
@@ -30,8 +31,11 @@ export default function SpacingScaleRenderer({ tokens, onTokenClick }: Props) {
               style={{ width: Math.max(barWidth, 4) }}
             />
             <span className="text-[11px] text-neutral-500 font-mono">{token.value}</span>
+            {cssVarMap?.[token.name]?.[0] && (
+              <span className="text-[10px] font-mono text-indigo-300 ml-auto shrink-0">{cssVarMap[token.name][0]}</span>
+            )}
             {token.zh && (
-              <span className="text-[11px] text-neutral-400 ml-auto hidden sm:block">{token.zh}</span>
+              <span className="text-[11px] text-neutral-400 shrink-0 hidden sm:block">{token.zh}</span>
             )}
           </button>
         )

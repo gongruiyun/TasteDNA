@@ -8,6 +8,7 @@ interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
   onTokenColorChange?: (line: number, color: string) => void
+  cssVarMap?: Record<string, string[]>
 }
 
 function extractColor(value: string): string {
@@ -60,7 +61,7 @@ function ScaleSwatch({ token, onTokenClick, onTokenColorChange }: {
   )
 }
 
-export default function ColorScaleRenderer({ tokens, onTokenClick, onTokenColorChange }: Props) {
+export default function ColorScaleRenderer({ tokens, onTokenClick, onTokenColorChange, cssVarMap }: Props) {
   return (
     <div className="space-y-1">
       {/* Horizontal strip */}
@@ -84,6 +85,7 @@ export default function ColorScaleRenderer({ tokens, onTokenClick, onTokenColorC
               data-line={token.line}
               onClick={() => onTokenClick?.(token.line)}
               className="flex-1 text-center"
+              title={cssVarMap?.[token.name]?.[0]}
             >
               <p className="text-[10px] text-neutral-500 font-mono">{token.name.split('-').pop()}</p>
               <p className="text-[9px] text-neutral-400 font-mono">{color.toUpperCase()}</p>

@@ -5,9 +5,10 @@ import type { TokenNode } from '@/lib/parser/types'
 interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
+  cssVarMap?: Record<string, string[]>
 }
 
-export default function ShadowScaleRenderer({ tokens, onTokenClick }: Props) {
+export default function ShadowScaleRenderer({ tokens, onTokenClick, cssVarMap }: Props) {
   return (
     <div className="flex flex-wrap gap-6">
       {tokens.map((token) => (
@@ -24,6 +25,9 @@ export default function ShadowScaleRenderer({ tokens, onTokenClick }: Props) {
           <div className="text-center">
             <p className="text-xs font-medium text-neutral-600">{token.name}</p>
             {token.zh && <p className="text-[10px] text-neutral-400">{token.zh}</p>}
+            {cssVarMap?.[token.name]?.[0] && (
+              <p className="text-[10px] font-mono text-indigo-300 mt-0.5">{cssVarMap[token.name][0]}</p>
+            )}
           </div>
         </button>
       ))}

@@ -5,9 +5,10 @@ import type { TokenNode } from '@/lib/parser/types'
 interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
+  cssVarMap?: Record<string, string[]>
 }
 
-export default function GenericScaleRenderer({ tokens, onTokenClick }: Props) {
+export default function GenericScaleRenderer({ tokens, onTokenClick, cssVarMap }: Props) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -16,6 +17,7 @@ export default function GenericScaleRenderer({ tokens, onTokenClick }: Props) {
             <th className="text-left text-xs font-medium text-neutral-400 py-2 pr-4 w-24">名称</th>
             <th className="text-left text-xs font-medium text-neutral-400 py-2 pr-4">值</th>
             <th className="text-left text-xs font-medium text-neutral-400 py-2">说明</th>
+            <th className="text-right text-xs font-medium text-neutral-400 py-2">CSS</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-50">
@@ -29,6 +31,7 @@ export default function GenericScaleRenderer({ tokens, onTokenClick }: Props) {
               <td className="py-2 pr-4 font-mono text-xs text-neutral-600 font-medium">{token.name}</td>
               <td className="py-2 pr-4 font-mono text-xs text-indigo-600">{token.value}</td>
               <td className="py-2 text-xs text-neutral-400">{token.zh ?? '—'}</td>
+              <td className="py-2 text-right font-mono text-[10px] text-indigo-300">{cssVarMap?.[token.name]?.[0] ?? '—'}</td>
             </tr>
           ))}
         </tbody>

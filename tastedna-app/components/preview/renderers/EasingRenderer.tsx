@@ -5,6 +5,7 @@ import type { TokenNode } from '@/lib/parser/types'
 interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
+  cssVarMap?: Record<string, string[]>
 }
 
 function parseCubicBezier(value: string): string | null {
@@ -49,7 +50,7 @@ function BezierPreview({ value }: { value: string }) {
   )
 }
 
-export default function EasingRenderer({ tokens, onTokenClick }: Props) {
+export default function EasingRenderer({ tokens, onTokenClick, cssVarMap }: Props) {
   return (
     <div className="flex flex-wrap gap-4">
       {tokens.map((token) => (
@@ -64,6 +65,9 @@ export default function EasingRenderer({ tokens, onTokenClick }: Props) {
             <p className="text-xs font-medium text-neutral-700">{token.name}</p>
             <p className="text-[10px] font-mono text-neutral-400 mt-0.5 max-w-[160px] break-all">{token.value}</p>
             {token.zh && <p className="text-[10px] text-neutral-400 mt-1">{token.zh}</p>}
+            {cssVarMap?.[token.name]?.[0] && (
+              <p className="text-[10px] font-mono text-indigo-300 mt-0.5">{cssVarMap[token.name][0]}</p>
+            )}
           </div>
         </button>
       ))}

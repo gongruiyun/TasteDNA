@@ -5,9 +5,10 @@ import type { TokenNode } from '@/lib/parser/types'
 interface Props {
   tokens: TokenNode[]
   onTokenClick?: (line: number) => void
+  cssVarMap?: Record<string, string[]>
 }
 
-export default function BorderRadiusRenderer({ tokens, onTokenClick }: Props) {
+export default function BorderRadiusRenderer({ tokens, onTokenClick, cssVarMap }: Props) {
   return (
     <div className="flex flex-wrap gap-5">
       {tokens.map((token) => {
@@ -26,6 +27,9 @@ export default function BorderRadiusRenderer({ tokens, onTokenClick }: Props) {
             <div className="text-center">
               <p className="text-[11px] font-medium text-neutral-600">{token.name}</p>
               <p className="text-[10px] text-neutral-400 font-mono">{token.value}</p>
+              {cssVarMap?.[token.name]?.[0] && (
+                <p className="text-[10px] font-mono text-indigo-300 mt-0.5">{cssVarMap[token.name][0]}</p>
+              )}
             </div>
           </button>
         )
