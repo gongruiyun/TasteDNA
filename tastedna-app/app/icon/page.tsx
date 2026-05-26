@@ -145,6 +145,7 @@ function mergeExtracted(specs: Partial<IconSpec>[]): Partial<IconSpec> {
     cap: vote(specs.map(s => s.cap).filter(Boolean) as Cap[]),
     corner: vote(specs.map(s => s.corner).filter(Boolean) as Corner[]),
     colorMode: vote(specs.map(s => s.colorMode).filter(Boolean) as ColorMode[]),
+    // opticalPad cannot be extracted from SVG — leave as undefined to keep user's choice
   }
 }
 
@@ -154,6 +155,7 @@ type StrokeWeight = 1 | 1.5 | 2 | 2.5
 type Cap = 'round' | 'square'
 type Corner = 'sharp' | 'subtle' | 'round'
 type ColorMode = 'single' | 'multi'
+type OpticalPad = 1 | 2 | 3
 
 interface IconSpec {
   style: Style
@@ -162,6 +164,7 @@ interface IconSpec {
   cap: Cap
   corner: Corner
   colorMode: ColorMode
+  opticalPad: OpticalPad
 }
 
 const VARIANT_COUNT = 3
@@ -180,6 +183,7 @@ const DEFAULT_SPEC: IconSpec = {
   cap: 'round',
   corner: 'subtle',
   colorMode: 'single',
+  opticalPad: 1,
 }
 
 const DEFAULT_NAMES = ''
@@ -201,7 +205,9 @@ function specToDesignMD(spec: IconSpec, colors: string[]): string {
     sharp:  'miter  // 转角锐利',
   }[spec.corner]
 
-  const usable = spec.gridSize - 2
+  const pad = spec.opticalPad ?? 1
+  const usable = spec.gridSize - pad * 2
+  const fillPct = Math.round((usable / spec.gridSize) * 100)
   const colorVal = spec.colorMode === 'multi' && colors.length > 0
     ? colors.join(', ') + '  // 多色调色板'
     : 'currentColor  // 继承父元素颜色，单色'
@@ -220,7 +226,7 @@ function specToDesignMD(spec: IconSpec, colors: string[]): string {
   return `### icon-style
 <!-- type: spec -->
 - style:           ${styleLabel}
-- grid:            ${spec.gridSize}×${spec.gridSize}px，1px 光学安全边距（可用 ${usable}×${usable}px）
+- grid:            ${spec.gridSize}×${spec.gridSize}px，${pad}px 光学边距（可用区域 ${usable}×${usable}px，占比 ${fillPct}%）
 - stroke-width:    ${spec.strokeWeight}px
 - stroke-linecap:  ${capLabel}
 - stroke-linejoin: ${joinLabel}
@@ -230,7 +236,7 @@ function specToDesignMD(spec: IconSpec, colors: string[]): string {
 
 ### ai-prompt-template
 <!-- type: ai-prompt -->
-SVG ${aiStyle} icon for {subject}, ${spec.gridSize}×${spec.gridSize} viewBox, 1px padding, stroke-width ${spec.strokeWeight}, stroke-linecap ${spec.cap}, stroke-linejoin ${spec.corner === 'sharp' ? 'miter' : 'round'}, ${aiFill}, ${aiAdj} paths, balanced optical weight, no decorative details. Output only raw SVG <path> elements, no wrapper tags.`
+SVG ${aiStyle} icon for {subject}, ${spec.gridSize}×${spec.gridSize} viewBox, ${pad}px optical padding (draw within ${pad}~${spec.gridSize - pad}), stroke-width ${spec.strokeWeight}, stroke-linecap ${spec.cap}, stroke-linejoin ${spec.corner === 'sharp' ? 'miter' : 'round'}, ${aiFill}, ${aiAdj} paths, balanced optical weight, no decorative details. Output only raw SVG <path> elements, no wrapper tags.`
 }
 
 const CHIP_ACTIVE: React.CSSProperties = {
@@ -334,6 +340,17 @@ function resizeSVG(svgString: string, targetSize: number): string {
       .replace(/\s+width="[^"]*"/, '')
       .replace(/\s+height="[^"]*"/, '')
     return `<svg${cleaned} width="${targetSize}" height="${targetSize}">`
+  })
+}
+
+/** Strip width/height from SVG and set to 100%/100% so it fills its container. */
+function svgForDisplay(svgString: string): string {
+  return svgString.replace(/<svg([^>]*)>/, (_, attrs) => {
+    const cleaned = attrs
+      .replace(/\s+width="[^"]*"/, '')
+      .replace(/\s+height="[^"]*"/, '')
+      .replace(/\s+style="[^"]*"/, '')
+    return `<svg${cleaned} width="100%" height="100%" style="display:block">`
   })
 }
 
@@ -1067,6 +1084,17 @@ export default function IconPage() {
                 }}
               />
 
+              <ChipGroup
+                label="光学边距"
+                options={[
+                  { label: '1px', value: 1 as OpticalPad },
+                  { label: '2px', value: 2 as OpticalPad },
+                  { label: '3px', value: 3 as OpticalPad },
+                ]}
+                value={spec.opticalPad}
+                onChange={(v) => setSpecField('opticalPad', v)}
+              />
+
               {/* Palette color editor — shown when multi-color mode */}
               {spec.colorMode === 'multi' && (
             <div style={{ marginBottom: '16px', marginTop: '-4px' }}>
@@ -1369,27 +1397,45 @@ export default function IconPage() {
                           title={err ?? undefined}
                           style={{
                             width: '100%', aspectRatio: '1 / 1',
-                            borderRadius: '10px', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center',
+                            borderRadius: '10px',
                             border: `2px solid ${isAdopted ? 'var(--brand-mint)' : err ? '#f87171' : 'var(--hairline)'}`,
-                            backgroundImage: err ? 'none' : `
-                              linear-gradient(var(--hairline) 1px, transparent 1px),
-                              linear-gradient(90deg, var(--hairline) 1px, transparent 1px)
-                            `,
-                            backgroundSize: '8px 8px',
                             backgroundColor: isAdopted
                               ? 'color-mix(in srgb, var(--brand-mint) 6%, var(--canvas))'
                               : err ? 'color-mix(in srgb, #f87171 6%, var(--canvas))' : 'var(--canvas)',
                             cursor: svg ? 'pointer' : 'default',
-                            color: 'var(--ink)', position: 'relative',
+                            position: 'relative',
                             transition: 'border-color 0.15s, background-color 0.15s',
                             overflow: 'hidden',
                           }}
                         >
+                          {/* SVG coordinate-native grid — scales with viewBox automatically */}
+                          {!err && (
+                            <svg
+                              viewBox={`0 0 ${spec.gridSize} ${spec.gridSize}`}
+                              width="100%" height="100%"
+                              style={{ position: 'absolute', inset: 0, display: 'block' }}
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <defs>
+                                <pattern
+                                  id={`g-${icon.name}-${vi}`}
+                                  x="0" y="0" width="1" height="1"
+                                  patternUnits="userSpaceOnUse"
+                                >
+                                  <path d="M 1 0 L 0 0 0 1" fill="none" stroke="currentColor" strokeWidth="0.05"/>
+                                </pattern>
+                              </defs>
+                              <rect width={spec.gridSize} height={spec.gridSize} fill={`url(#g-${icon.name}-${vi})`} opacity="0.18"/>
+                            </svg>
+                          )}
+
                           {svg ? (
                             <>
-                              <div style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                dangerouslySetInnerHTML={{ __html: svg }} />
+                              {/* Icon fills ~90% of card — SVG viewBox handles the rest */}
+                              <div
+                                style={{ position: 'absolute', inset: '5%', lineHeight: 0 }}
+                                dangerouslySetInnerHTML={{ __html: svgForDisplay(svg) }}
+                              />
                               {isAdopted && (
                                 <div style={{
                                   position: 'absolute', top: '5px', right: '6px',
@@ -1399,7 +1445,7 @@ export default function IconPage() {
                               )}
                             </>
                           ) : err ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', padding: '4px' }}>
+                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px' }}>
                               <span style={{ fontSize: '14px', lineHeight: 1 }}>⚠</span>
                               <span style={{ fontSize: '9px', color: '#ef4444', textAlign: 'center', lineHeight: 1.3, maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {err.slice(0, 30)}
@@ -1407,8 +1453,8 @@ export default function IconPage() {
                             </div>
                           ) : (
                             <div style={{
-                              width: '40px', height: '40px',
-                              backgroundColor: 'var(--hairline)', borderRadius: '8px',
+                              position: 'absolute', inset: '30%',
+                              backgroundColor: 'var(--hairline)', borderRadius: '4px',
                               animation: 'pulse 1.5s ease-in-out infinite',
                             }} />
                           )}
