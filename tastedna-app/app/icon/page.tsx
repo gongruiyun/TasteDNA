@@ -327,6 +327,16 @@ ${symbols}
 </svg>`
 }
 
+/** Set explicit width/height on an SVG string, preserving its viewBox. */
+function resizeSVG(svgString: string, targetSize: number): string {
+  return svgString.replace(/<svg([^>]*)>/, (_, attrs) => {
+    const cleaned = attrs
+      .replace(/\s+width="[^"]*"/, '')
+      .replace(/\s+height="[^"]*"/, '')
+    return `<svg${cleaned} width="${targetSize}" height="${targetSize}">`
+  })
+}
+
 interface RefImage { name: string; base64: string; mime: string; preview: string }
 
 function readFileAsBase64(file: File): Promise<RefImage> {
@@ -362,6 +372,8 @@ export default function IconPage() {
   const [conceptImages, setConceptImages] = useState<RefImage[]>([])
   const [isDragOverConcept, setIsDragOverConcept] = useState(false)
   const [specTab, setSpecTab] = useState<'controls' | 'spec'>('controls')
+  // Download size picker: stores the open popover key ('__header__' or icon.name), null = closed
+  const [downloadPopover, setDownloadPopover] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const colorInputRef = useRef<HTMLInputElement>(null)
   const conceptInputRef = useRef<HTMLInputElement>(null)
@@ -664,6 +676,48 @@ export default function IconPage() {
     URL.revokeObjectURL(url)
   }
 
+  /** Download a single icon SVG at a specific pixel size */
+  const handleDownloadAtSize = useCallback((name: string, svg: string, size: number) => {
+    const resized = resizeSVG(svg, size)
+    const blob = new Blob([resized], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${name}-${size}.svg`
+    a.click()
+    URL.revokeObjectURL(url)
+    setDownloadPopover(null)
+  }, [])
+
+  /** Download ALL adopted icons at a specific pixel size (one file per icon) */
+  const handleDownloadAllAtSize = useCallback((size: number) => {
+    const adopted = iconVariants.filter(i => i.adopted !== null && i.variants[i.adopted!])
+    adopted.forEach((icon, idx) => {
+      setTimeout(() => {
+        const svg = icon.variants[icon.adopted!]!
+        const resized = resizeSVG(svg, size)
+        const blob = new Blob([resized], { type: 'image/svg+xml' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${icon.name}-${size}.svg`
+        a.click()
+        URL.revokeObjectURL(url)
+      }, idx * 80)
+    })
+    setDownloadPopover(null)
+  }, [iconVariants])
+
+  // Close download popover when clicking outside [data-dl-pop] elements
+  useEffect(() => {
+    if (!downloadPopover) return
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as Element).closest('[data-dl-pop]')) setDownloadPopover(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [downloadPopover])
+
   // Auto-computed DESIGN.md block from current spec; user can override with customMD
   const computedMD = useMemo(() => specToDesignMD(spec, paletteColors), [spec, paletteColors])
   const displayMD = customMD ?? computedMD
@@ -732,24 +786,55 @@ export default function IconPage() {
           >
             {diagLoading ? '检测中…' : '🔌 测试连接'}
           </button>
-          <button
-            onClick={handleDownload}
-            disabled={!hasReadyIcons}
-            style={{
-              backgroundColor: hasReadyIcons ? 'var(--surface-card)' : 'var(--surface-soft)',
-              color: hasReadyIcons ? 'var(--body)' : 'var(--muted-soft)',
-              border: '1px solid var(--hairline)',
-              borderRadius: '8px',
-              padding: '6px 14px',
-              fontSize: '12px',
-              fontWeight: 500,
-              cursor: hasReadyIcons ? 'pointer' : 'not-allowed',
-              opacity: hasReadyIcons ? 1 : 0.6,
-              transition: 'all 0.15s',
-            }}
-          >
-            ↓ 下载图标集{adoptedCount > 0 ? `（${adoptedCount}）` : ''}
-          </button>
+          {/* Header download with size picker */}
+          <div data-dl-pop style={{ position: 'relative' }}>
+            <button
+              onClick={() => hasReadyIcons && setDownloadPopover(p => p === '__header__' ? null : '__header__')}
+              disabled={!hasReadyIcons}
+              style={{
+                backgroundColor: hasReadyIcons ? 'var(--surface-card)' : 'var(--surface-soft)',
+                color: hasReadyIcons ? 'var(--body)' : 'var(--muted-soft)',
+                border: '1px solid var(--hairline)',
+                borderRadius: '8px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: hasReadyIcons ? 'pointer' : 'not-allowed',
+                opacity: hasReadyIcons ? 1 : 0.6,
+                transition: 'all 0.15s',
+              }}
+            >
+              ↓ 下载图标集{adoptedCount > 0 ? `（${adoptedCount}）` : ''}
+            </button>
+            {downloadPopover === '__header__' && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                backgroundColor: 'var(--canvas)', border: '1px solid var(--hairline)',
+                borderRadius: '10px', padding: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
+                display: 'flex', flexDirection: 'column', gap: '4px', zIndex: 50, minWidth: '120px',
+              }}>
+                <span style={{ fontSize: '10px', color: 'var(--muted-soft)', padding: '2px 6px', fontWeight: 600 }}>
+                  选择尺寸下载
+                </span>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {([16, 20, 24, 32] as const).map(size => (
+                    <button
+                      key={size}
+                      onClick={() => handleDownloadAllAtSize(size)}
+                      style={{
+                        flex: 1, padding: '5px 0', fontSize: '11px', fontFamily: 'monospace',
+                        borderRadius: '6px', border: '1px solid var(--hairline)',
+                        backgroundColor: size === spec.gridSize ? 'var(--ink)' : 'var(--canvas)',
+                        color: size === spec.gridSize ? '#fff' : 'var(--body)',
+                        cursor: 'pointer', fontWeight: size === spec.gridSize ? 600 : 400,
+                        transition: 'all 0.1s',
+                      }}
+                    >{size}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1348,20 +1433,46 @@ export default function IconPage() {
                           transition: 'all 0.15s', flexShrink: 0,
                         }}
                       >{copiedName === icon.name ? '✓' : '⎘'}</button>
-                      {/* Download adopted */}
-                      <button
-                        onClick={() => adoptedSvg && handleDownloadIcon(icon.name, adoptedSvg)}
-                        disabled={!adoptedSvg}
-                        title="下载已采用的变体 SVG"
-                        style={{
-                          width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--hairline)',
-                          backgroundColor: 'var(--canvas)', color: 'var(--muted)',
-                          cursor: adoptedSvg ? 'pointer' : 'not-allowed',
-                          opacity: adoptedSvg ? 1 : 0.3, fontSize: '11px',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.15s', flexShrink: 0,
-                        }}
-                      >↓</button>
+                      {/* Download adopted — with size picker */}
+                      <div data-dl-pop style={{ position: 'relative' }}>
+                        <button
+                          onClick={() => adoptedSvg && setDownloadPopover(p => p === icon.name ? null : icon.name)}
+                          disabled={!adoptedSvg}
+                          title="选择尺寸下载"
+                          style={{
+                            width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--hairline)',
+                            backgroundColor: downloadPopover === icon.name ? 'var(--surface-card)' : 'var(--canvas)',
+                            color: 'var(--muted)',
+                            cursor: adoptedSvg ? 'pointer' : 'not-allowed',
+                            opacity: adoptedSvg ? 1 : 0.3, fontSize: '11px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.15s', flexShrink: 0,
+                          }}
+                        >↓</button>
+                        {downloadPopover === icon.name && adoptedSvg && (
+                          <div style={{
+                            position: 'absolute', bottom: 'calc(100% + 6px)', right: 0,
+                            backgroundColor: 'var(--canvas)', border: '1px solid var(--hairline)',
+                            borderRadius: '10px', padding: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                            display: 'flex', gap: '4px', zIndex: 50,
+                          }}>
+                            {([16, 20, 24, 32] as const).map(size => (
+                              <button
+                                key={size}
+                                onClick={() => handleDownloadAtSize(icon.name, adoptedSvg, size)}
+                                style={{
+                                  width: '34px', padding: '5px 0', fontSize: '11px', fontFamily: 'monospace',
+                                  borderRadius: '6px', border: '1px solid var(--hairline)',
+                                  backgroundColor: size === spec.gridSize ? 'var(--ink)' : 'var(--canvas)',
+                                  color: size === spec.gridSize ? '#fff' : 'var(--body)',
+                                  cursor: 'pointer', fontWeight: size === spec.gridSize ? 600 : 400,
+                                  transition: 'all 0.1s',
+                                }}
+                              >{size}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       {/* Regenerate this icon */}
                       <button
                         onClick={() => handleRegenerateOne(icon.name)}
