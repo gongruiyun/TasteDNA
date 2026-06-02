@@ -231,6 +231,8 @@ Design style: minimal and warm UI with soft neutral backgrounds, restrained use 
 
 ### button
 <!-- type: component-spec -->
+- usage:           主操作入口——表单提交、弹窗确认、页面级主操作；primary 变体用于每屏最多一个核心动作，secondary/ghost 用于辅助操作
+- prohibited:      不能在表格行内使用 primary 变体；不能连续并排超过 2 个按钮；不能用 link 变体替代导航链接；danger 变体仅用于不可逆操作（删除/清空）
 - height:          sm=28px, md=36px, lg=44px
 - padding:         sm=px-3, md=px-4, lg=px-6
 - font:            md weight, base size (md=14px, lg=15px)
@@ -243,6 +245,8 @@ Design style: minimal and warm UI with soft neutral backgrounds, restrained use 
 
 ### input
 <!-- type: component-spec -->
+- usage:           单行文本录入——搜索框、表单字段、筛选器；需要配合 label 使用，placeholder 仅作补充说明而非替代 label
+- prohibited:      不能省略 label（无障碍要求）；不能在只读展示场景使用 input（改用纯文本）；不能嵌套在 table cell 内直接展示（改用 inline-edit 模式）
 - height:          36px (default), 44px (large)
 - padding:         px-3 py-2
 - border:          1px neutral-200, focus: 2px primary
@@ -254,6 +258,8 @@ Design style: minimal and warm UI with soft neutral backgrounds, restrained use 
 
 ### card
 <!-- type: component-spec -->
+- usage:           内容容器——将同类信息归组展示；适用于列表项、数据摘要、功能入口；可点击时整体作为交互区域
+- prohibited:      不能在 card 内嵌套 card（改用 section 分隔）；不能省略 padding 直接让内容贴边；card 内不能出现超过 1 个 primary button
 - bg:              neutral-0
 - border:          1px neutral-200
 - radius:          lg (12px)
@@ -264,6 +270,8 @@ Design style: minimal and warm UI with soft neutral backgrounds, restrained use 
 
 ### sidebar-nav
 <!-- type: component-spec -->
+- usage:           全局导航——页面级路由切换；每个 item 对应一个顶级功能区；同一时刻只有一个 item 处于 active 状态
+- prohibited:      不能将操作按钮（新建/删除等）放入 sidebar-nav item；不能超过 8 个顶级 item；不能在 item 内嵌套超过一级子菜单
 - width:           240px
 - bg:              neutral-50
 - item-height:     40px
@@ -276,6 +284,8 @@ Design style: minimal and warm UI with soft neutral backgrounds, restrained use 
 
 ### tag / badge
 <!-- type: component-spec -->
+- usage:           状态标注和分类标签——用于标记内容属性（状态/类型/标签）；badge 用于数量提示（未读数/计数）；tag 用于可枚举的分类属性
+- prohibited:      单个元素上不能叠加超过 3 个 tag；不能用 tag 替代 button 触发操作；error 变体仅用于错误/失败状态，不能用于强调普通信息
 - height:          20px (sm), 24px (md)
 - padding:         px-2
 - radius:          sm (4px)
@@ -284,6 +294,8 @@ Design style: minimal and warm UI with soft neutral backgrounds, restrained use 
 
 ### modal
 <!-- type: component-spec -->
+- usage:           阻断性交互——需要用户明确确认或完成独立任务才能继续；适用于表单填写、二次确认、详情预览；sm 用于纯确认对话，md 用于简单表单，lg 用于复杂内容
+- prohibited:      不能在 modal 内再打开另一个 modal；不能用 modal 展示纯信息（改用 toast/banner）；不能省略关闭按钮；modal 内表单不能超过 5 个字段（改用独立页面）
 - backdrop:        bg=rgba(0,0,0,0.4), blur=4px
 - bg:              neutral-0
 - radius:          xl (16px)
@@ -337,38 +349,34 @@ Flat illustration, {subject}, soft pastel colors with blue-purple (#4F6EF7) acce
 ## icon-style
 <!-- section: icon-style -->
 
-### style-keywords
-<!-- type: list -->
-- line-icons         // 线性图标，非填充
-- rounded-caps       // 端点圆润（stroke-linecap: round）
-- rounded-joins      // 转角圆润（stroke-linejoin: round）
-- consistent-weight  // 统一描边粗细
-- optical-balance    // 视觉平衡，关键路径不偏移
-
 ### specs
 <!-- type: spec -->
-- grid:          24×24px (standard), 16×16px (small), 32×32px (large)
-- stroke-width:  1.5px (standard grid), 1.25px (small grid)
-- padding:       2px 内边距（可用区域 20×20px）
-- corner-radius: 2px（直角元素的圆角处理）
-- color:         currentColor（继承父级颜色）
+- style:          线性描边（stroke-only，fill: none）
+- grid:           24×24px 标准，16×16px 小尺寸，32×32px 大尺寸
+- stroke-width:   1.5px（24px 网格），1.25px（16px 网格）
+- stroke-linecap: round  // 端点圆润
+- stroke-linejoin: round  // 转角圆润
+- padding:        1px 光学安全边距（可用区域 22×22px）
+- color:          currentColor  // 继承父元素颜色，单色
+- usage: 功能性图标——导航、操作按钮、状态提示、表单前缀
+- prohibited: 不能使用实心填充（fill 非 none）；不能使用阴影或渐变；描边不得超过 2px；16px 以下不使用复杂路径（超过 6 个锚点）；不能在图标内混用多种描边粗细
 
 ### size-usage
 <!-- type: list -->
-- 16px:  面包屑、行内图标、tag 内图标
-- 20px:  默认行内图标（正文旁）
-- 24px:  导航图标、按钮图标
-- 32px:  空状态图标、功能入口卡片
+- 16px:  面包屑、tag 内图标、行内紧凑图标
+- 20px:  正文旁默认行内图标
+- 24px:  导航图标、按钮前缀图标
+- 32px:  空状态插图、功能入口卡片
 
 ### ai-prompt-template
 <!-- type: ai-prompt -->
-SVG line icon for {subject}, 24×24px grid, 1.5px stroke width, stroke-linecap round, stroke-linejoin round, 2px padding from edges, monochrome (currentColor), minimal and clean design, no fill, balanced optical weight. Output only the SVG path data within a 24×24 viewBox.
+SVG line icon for {subject}, 24×24 viewBox, 1px padding from edges, stroke-width 1.5, stroke-linecap round, stroke-linejoin round, fill none, monochrome currentColor, minimal geometric paths, balanced optical weight, no decorative details. Output only raw SVG <path> elements, no wrapper tags.
 
 ### naming-convention
 <!-- type: rules -->
 - 格式：{category}-{name}.svg
 - 示例：nav-home.svg, action-edit.svg, status-success.svg
-- category 可选值：nav, action, status, media, file, social, arrow
+- category 可选值：nav, action, status, media, file, social, arrow, form
 
 ---
 

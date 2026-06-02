@@ -11,132 +11,45 @@ function extractStyleFromSVG(svgText: string): Partial<IconSpec> {
   const doc = parser.parseFromString(svgText, 'image/svg+xml')
   const svg = doc.querySelector('svg')
   if (!svg || doc.querySelector('parsererror')) return {}
-
   const result: Partial<IconSpec> = {}
-
-  // Grid size from viewBox
   const vb = svg.getAttribute('viewBox')?.trim().split(/[\s,]+/)
   if (vb && vb.length >= 4) {
-    const w = parseFloat(vb[2]), h = parseFloat(vb[3])
-    const size = Math.round((w + h) / 2)
-    const snap = ([16, 20, 24, 32] as GridSize[]).reduce((a, b) =>
-      Math.abs(b - size) < Math.abs(a - size) ? b : a)
-    result.gridSize = snap
+    const size = Math.round((parseFloat(vb[2]) + parseFloat(vb[3])) / 2)
+    result.gridSize = ([16, 20, 24, 32] as GridSize[]).reduce((a, b) => Math.abs(b - size) < Math.abs(a - size) ? b : a)
   }
-
-  // Collect per-element attributes
   const els = Array.from(doc.querySelectorAll('path,line,polyline,polygon,rect,circle,ellipse,g'))
-  const strokeWidths: number[] = []
-  const linecaps: string[] = []
-  let totalFilled = 0, totalStroked = 0
-
+  const strokeWidths: number[] = [], linecaps: string[] = []
+  let filled = 0, stroked = 0
   const resolveAttr = (el: Element, attr: string): string => {
-    let val = el.getAttribute(attr)
-    if (!val) {
-      let p: Element | null = el.parentElement
-      while (p && p !== svg) { val = p.getAttribute(attr); if (val) break; p = p.parentElement }
-    }
-    return val || svg.getAttribute(attr) || ''
+    let v = el.getAttribute(attr)
+    if (!v) { let p: Element | null = el.parentElement; while (p && p !== svg) { v = p.getAttribute(attr); if (v) break; p = p.parentElement } }
+    return v || svg.getAttribute(attr) || ''
   }
-
   els.forEach(el => {
-    const sw = parseFloat(el.getAttribute('stroke-width') || '')
-    if (!isNaN(sw) && sw > 0) strokeWidths.push(sw)
-
-    const slc = el.getAttribute('stroke-linecap')
-    if (slc) linecaps.push(slc)
-
-    const fill = resolveAttr(el, 'fill')
-    const stroke = resolveAttr(el, 'stroke')
-    const hasFill = fill && fill !== 'none'
-    const hasStroke = stroke && stroke !== 'none'
-    if (hasFill) totalFilled++
-    if (hasStroke) totalStroked++
+    const sw = parseFloat(el.getAttribute('stroke-width') || ''); if (!isNaN(sw) && sw > 0) strokeWidths.push(sw)
+    const slc = el.getAttribute('stroke-linecap'); if (slc) linecaps.push(slc)
+    const fill = resolveAttr(el, 'fill'), stroke = resolveAttr(el, 'stroke')
+    if (fill && fill !== 'none') filled++
+    if (stroke && stroke !== 'none') stroked++
   })
-
-  // Determine style
-  if (totalStroked > 0 && totalFilled === 0) result.style = 'outline'
-  else if (totalFilled > 0 && totalStroked === 0) result.style = 'filled'
-  else if (totalFilled > 0 && totalStroked > 0) result.style = 'duotone'
-
-  // Stroke weight → snap to nearest valid value
+  if (stroked > 0 && filled === 0) result.style = 'outline'
+  else if (filled > 0 && stroked === 0) result.style = 'filled'
+  else if (filled > 0 && stroked > 0) result.style = 'duotone'
   if (strokeWidths.length > 0) {
     const avg = strokeWidths.reduce((a, b) => a + b, 0) / strokeWidths.length
-    const snap = ([1, 1.5, 2, 2.5] as StrokeWeight[]).reduce((a, b) =>
-      Math.abs(b - avg) < Math.abs(a - avg) ? b : a)
-    result.strokeWeight = snap
+    result.strokeWeight = ([1, 1.5, 2, 2.5] as StrokeWeight[]).reduce((a, b) => Math.abs(b - avg) < Math.abs(a - avg) ? b : a)
   }
-
-  // Linecap
-  if (linecaps.length > 0) {
-    result.cap = linecaps.includes('round') ? 'round' : 'square'
-  }
-
-  // Corner radius from rect rx
-  const rxVals: number[] = []
-  doc.querySelectorAll('rect').forEach(r => {
-    const rx = parseFloat(r.getAttribute('rx') || '')
-    if (!isNaN(rx)) rxVals.push(rx)
-  })
-  if (rxVals.length > 0) {
-    const avgRx = rxVals.reduce((a, b) => a + b, 0) / rxVals.length
-    const gs = result.gridSize ?? 24
-    const ratio = avgRx / gs
-    result.corner = ratio < 0.04 ? 'sharp' : ratio < 0.13 ? 'subtle' : 'round'
-  }
-
-  // Color mode — detect hardcoded hex/rgb colors (vs currentColor only)
-  const hardcodedColors: string[] = []
-  const allEls = Array.from(doc.querySelectorAll('*'))
-  allEls.forEach(el => {
-    ;['fill', 'stroke', 'stop-color'].forEach(attr => {
-      const val = el.getAttribute(attr)
-      if (val && val !== 'none' && val !== 'currentColor' && val !== 'inherit' && val !== 'transparent') {
-        hardcodedColors.push(val)
-      }
-    })
-    // Also check inline style
-    const style = el.getAttribute('style') || ''
-    if (/(fill|stroke)\s*:\s*(?!none|currentColor|inherit)[^;]+/i.test(style)) {
-      hardcodedColors.push('from-style')
-    }
-  })
-  result.colorMode = hardcodedColors.length > 0 ? 'multi' : 'single'
-
+  if (linecaps.length > 0) result.cap = linecaps.includes('round') ? 'round' : 'square'
+  const rxVals: number[] = []; doc.querySelectorAll('rect').forEach(r => { const rx = parseFloat(r.getAttribute('rx') || ''); if (!isNaN(rx)) rxVals.push(rx) })
+  if (rxVals.length > 0) { const ratio = (rxVals.reduce((a, b) => a + b, 0) / rxVals.length) / (result.gridSize ?? 24); result.corner = ratio < 0.04 ? 'sharp' : ratio < 0.13 ? 'subtle' : 'round' }
   return result
-}
-
-function extractColorsFromSVG(svgText: string): string[] {
-  if (typeof window === 'undefined') return []
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(svgText, 'image/svg+xml')
-  if (doc.querySelector('parsererror')) return []
-
-  const colors = new Set<string>()
-  Array.from(doc.querySelectorAll('*')).forEach(el => {
-    ;['fill', 'stroke', 'stop-color'].forEach(attr => {
-      const val = el.getAttribute(attr)
-      if (val && val !== 'none' && val !== 'currentColor' && val !== 'inherit' && val !== 'transparent') {
-        if (/^#[0-9a-fA-F]{3,8}$/.test(val)) colors.add(val.toLowerCase())
-        else if (/^rgb/.test(val)) colors.add(val.replace(/\s/g, '').toLowerCase())
-      }
-    })
-    const style = el.getAttribute('style') || ''
-    const matches = style.matchAll(/(fill|stroke|stop-color)\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\))/gi)
-    for (const m of matches) colors.add(m[2].trim().toLowerCase())
-  })
-  return Array.from(colors)
 }
 
 function mergeExtracted(specs: Partial<IconSpec>[]): Partial<IconSpec> {
   if (specs.length === 0) return {}
-  // Vote on each field — most common value wins
   const vote = <T,>(vals: T[]): T | undefined => {
-    const map = new Map<string, number>()
-    vals.forEach(v => { const k = String(v); map.set(k, (map.get(k) ?? 0) + 1) })
-    let best: T | undefined, bestN = 0
-    vals.forEach(v => { const n = map.get(String(v)) ?? 0; if (n > bestN) { bestN = n; best = v } })
-    return best
+    const map = new Map<string, number>(); vals.forEach(v => map.set(String(v), (map.get(String(v)) ?? 0) + 1))
+    let best: T | undefined, bestN = 0; vals.forEach(v => { const n = map.get(String(v)) ?? 0; if (n > bestN) { bestN = n; best = v } }); return best
   }
   return {
     style: vote(specs.map(s => s.style).filter(Boolean) as Style[]),
@@ -144,8 +57,6 @@ function mergeExtracted(specs: Partial<IconSpec>[]): Partial<IconSpec> {
     strokeWeight: vote(specs.map(s => s.strokeWeight).filter(Boolean) as StrokeWeight[]),
     cap: vote(specs.map(s => s.cap).filter(Boolean) as Cap[]),
     corner: vote(specs.map(s => s.corner).filter(Boolean) as Corner[]),
-    colorMode: vote(specs.map(s => s.colorMode).filter(Boolean) as ColorMode[]),
-    // opticalPad cannot be extracted from SVG — leave as undefined to keep user's choice
   }
 }
 
@@ -239,30 +150,6 @@ function specToDesignMD(spec: IconSpec, colors: string[]): string {
 SVG ${aiStyle} icon for {subject}, ${spec.gridSize}×${spec.gridSize} viewBox, ${pad}px optical padding (draw within ${pad}~${spec.gridSize - pad}), stroke-width ${spec.strokeWeight}, stroke-linecap ${spec.cap}, stroke-linejoin ${spec.corner === 'sharp' ? 'miter' : 'round'}, ${aiFill}, ${aiAdj} paths, balanced optical weight, no decorative details. Output only raw SVG <path> elements, no wrapper tags.`
 }
 
-const CHIP_ACTIVE: React.CSSProperties = {
-  backgroundColor: 'var(--ink)',
-  color: '#ffffff',
-  border: '1px solid var(--ink)',
-  borderRadius: '6px',
-  padding: '4px 10px',
-  fontSize: '12px',
-  fontWeight: 500,
-  cursor: 'pointer',
-  transition: 'all 0.15s',
-}
-
-const CHIP_INACTIVE: React.CSSProperties = {
-  backgroundColor: 'var(--canvas)',
-  color: 'var(--body)',
-  border: '1px solid var(--hairline)',
-  borderRadius: '6px',
-  padding: '4px 10px',
-  fontSize: '12px',
-  fontWeight: 500,
-  cursor: 'pointer',
-  transition: 'all 0.15s',
-}
-
 const SECTION_LABEL: React.CSSProperties = {
   fontSize: '10px',
   fontWeight: 600,
@@ -271,35 +158,6 @@ const SECTION_LABEL: React.CSSProperties = {
   color: 'var(--muted-soft)',
   marginBottom: '6px',
   display: 'block',
-}
-
-function ChipGroup<T extends string | number>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string
-  options: { label: string; value: T }[]
-  value: T
-  onChange: (v: T) => void
-}) {
-  return (
-    <div style={{ marginBottom: '16px' }}>
-      <span style={SECTION_LABEL}>{label}</span>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-        {options.map((opt) => (
-          <button
-            key={String(opt.value)}
-            onClick={() => onChange(opt.value)}
-            style={value === opt.value ? CHIP_ACTIVE : CHIP_INACTIVE}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 function parseIcons(text: string): Map<string, string> {
@@ -368,6 +226,124 @@ function readFileAsBase64(file: File): Promise<RefImage> {
   })
 }
 
+/** Fetch a Lucide icon SVG by name from unpkg CDN. Returns null if not found. */
+async function fetchLucideIcon(name: string): Promise<string | null> {
+  // Lucide uses kebab-case names
+  const kebab = name.toLowerCase().replace(/[\s_]+/g, '-')
+  try {
+    const res = await fetch(`https://unpkg.com/lucide-static@latest/icons/${kebab}.svg`, { cache: 'force-cache' })
+    if (!res.ok) return null
+    return await res.text()
+  } catch {
+    return null
+  }
+}
+
+// ── Feature 4: SVG spec validation ──────────────────────────────────────────
+
+function validateSVG(svgText: string, spec: IconSpec): { ok: boolean; issues: string[] } {
+  const issues: string[] = []
+
+  // 1. viewBox roughly matches gridSize
+  const vbMatch = svgText.match(/viewBox=["']([^"']+)["']/)
+  if (vbMatch) {
+    const parts = vbMatch[1].trim().split(/[\s,]+/)
+    if (parts.length >= 4) {
+      const w = parseFloat(parts[2])
+      const h = parseFloat(parts[3])
+      const avg = (w + h) / 2
+      if (Math.abs(avg - spec.gridSize) > 4) {
+        issues.push(`viewBox (${w}×${h}) 与规格 ${spec.gridSize}×${spec.gridSize} 不符`)
+      }
+    }
+  } else {
+    issues.push('缺少 viewBox')
+  }
+
+  // 2. stroke-width presence and value for outline/duotone
+  if (spec.style === 'outline' || spec.style === 'duotone') {
+    const swMatch = svgText.match(/stroke-width=["']([^"']+)["']/)
+    if (!swMatch) {
+      issues.push('缺少 stroke-width')
+    } else {
+      const sw = parseFloat(swMatch[1])
+      if (!isNaN(sw) && Math.abs(sw - spec.strokeWeight) > 0.6) {
+        issues.push(`stroke-width=${sw} 与规格 ${spec.strokeWeight} 差异较大`)
+      }
+    }
+  }
+
+  // 3. fill="none" for outline style
+  if (spec.style === 'outline') {
+    if (!svgText.includes('fill="none"') && !svgText.includes("fill='none'")) {
+      issues.push('outline 样式缺少 fill="none"')
+    }
+  }
+
+  // 4. No <image> elements
+  if (/<image[\s>]/i.test(svgText)) {
+    issues.push('包含嵌入图片元素')
+  }
+
+  // 5. Has at least one path or shape element
+  if (!/<(path|circle|rect|ellipse|line|polyline|polygon)[\s>]/i.test(svgText)) {
+    issues.push('没有路径或形状元素')
+  }
+
+  return { ok: issues.length === 0, issues }
+}
+
+// ── Feature 5: Natural language name parser ──────────────────────────────────
+
+interface NameWithDesc {
+  name: string
+  description?: string
+}
+
+function parseNamesWithDesc(input: string): NameWithDesc[] {
+  // First split by newlines to get lines
+  const lines = input.split('\n').map(l => l.trim()).filter(Boolean)
+  const results: NameWithDesc[] = []
+
+  for (const line of lines) {
+    if (line.includes(':')) {
+      // Has description — don't split by comma within this line
+      const colonIdx = line.indexOf(':')
+      const name = line.slice(0, colonIdx).trim().toLowerCase()
+      const description = line.slice(colonIdx + 1).trim()
+      if (name) results.push({ name, description: description || undefined })
+    } else {
+      // No description — allow comma-separated names on this line
+      const parts = line.split(',').map(p => p.trim().toLowerCase()).filter(Boolean)
+      parts.forEach(name => results.push({ name }))
+    }
+  }
+
+  return results.slice(0, 16)
+}
+
+// ── Feature 3: JSX conversion ────────────────────────────────────────────────
+
+function svgToJSX(svgText: string): string {
+  return '() => ' + svgText
+    .replace(/stroke-width=/g, 'strokeWidth=')
+    .replace(/stroke-linecap=/g, 'strokeLinecap=')
+    .replace(/stroke-linejoin=/g, 'strokeLinejoin=')
+    .replace(/fill-opacity=/g, 'fillOpacity=')
+    .replace(/clip-path=/g, 'clipPath=')
+    .replace(/class=/g, 'className=')
+}
+
+function extractPaths(svgText: string): string {
+  const dValues: string[] = []
+  const dRegex = /\bd="([^"]*)"/g
+  let m
+  while ((m = dRegex.exec(svgText)) !== null) {
+    dValues.push(m[1])
+  }
+  return dValues.join('\n')
+}
+
 export default function IconPage() {
   const [spec, setSpec] = useState<IconSpec>(DEFAULT_SPEC)
   const [namesInput, setNamesInput] = useState(DEFAULT_NAMES)
@@ -376,56 +352,43 @@ export default function IconPage() {
   const [diagLoading, setDiagLoading] = useState(false)
   const [genPhase, setGenPhase] = useState<'idle' | 'thinking' | 'writing'>('idle')
   const [generating, setGenerating] = useState(false)
-  const [uploadedSVGs, setUploadedSVGs] = useState<string[]>([])
-  const [refImages, setRefImages] = useState<RefImage[]>([])
-  const [extracting, setExtracting] = useState(false)
-  const [extractDone, setExtractDone] = useState(false)
-  const [isDragOver, setIsDragOver] = useState(false)
   const [copiedName, setCopiedName] = useState<string | null>(null)
   const [copiedMD, setCopiedMD] = useState(false)
   const [customMD, setCustomMD] = useState<string | null>(null)
   const [identifying, setIdentifying] = useState(false)
-  const [paletteColors, setPaletteColors] = useState<string[]>([])
   const [conceptImages, setConceptImages] = useState<RefImage[]>([])
+  const [conceptHint, setConceptHint] = useState('')
+  // 'name-only': concept images used for name ID only, NOT sent to generation
+  // 'visual': concept images sent to generation API as visual reference
+  const [conceptMode, setConceptMode] = useState<'name-only' | 'visual'>('name-only')
   const [isDragOverConcept, setIsDragOverConcept] = useState(false)
-  const [specTab, setSpecTab] = useState<'controls' | 'spec'>('controls')
   // Download size picker: stores the open popover key ('__header__' or icon.name), null = closed
   const [downloadPopover, setDownloadPopover] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [lucideBases, setLucideBases] = useState<Record<string, string>>({}) // name → Lucide SVG
+  const [isDragOverSVG, setIsDragOverSVG] = useState(false)
+  const [svgExtracting, setSvgExtracting] = useState(false)
+  // Feature 2: multi-size preview
+  const [previewIconName, setPreviewIconName] = useState<string | null>(null)
+  // Feature 3: code panel
+  const [codePanelIcon, setCodePanelIcon] = useState<string | null>(null)
+  const [codePanelTab, setCodePanelTab] = useState<'svg' | 'jsx' | 'path'>('svg')
+  const [codePanelCopied, setCodePanelCopied] = useState(false)
   const colorInputRef = useRef<HTMLInputElement>(null)
+  const svgInputRef = useRef<HTMLInputElement>(null)
   const conceptInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  const handleFiles = useCallback(async (files: FileList | File[]) => {
-    const all = Array.from(files).slice(0, 100)
-    const svgFiles = all.filter(f => f.name.toLowerCase().endsWith('.svg') || f.type === 'image/svg+xml')
-    const imgFiles = all.filter(f => f.type.startsWith('image/') && !f.type.includes('svg'))
-
-    // SVG → extract style
-    if (svgFiles.length > 0) {
-      setExtracting(true)
-      setExtractDone(false)
-      const texts = await Promise.all(svgFiles.map(f => f.text()))
-      const merged = mergeExtracted(texts.map(extractStyleFromSVG))
-      setSpec(prev => ({ ...prev, ...Object.fromEntries(
-        Object.entries(merged).filter(([, v]) => v !== undefined)
-      )}))
-      setUploadedSVGs(svgFiles.map(f => f.name))
-      // Extract palette colors from all uploaded SVGs
-      const allColors = Array.from(new Set(texts.flatMap(extractColorsFromSVG))).slice(0, 16)
-      if (allColors.length > 0) {
-        setPaletteColors(allColors)
-      }
-      setExtracting(false)
-      setExtractDone(true)
-      setTimeout(() => setExtractDone(false), 3000)
-    }
-
-    // Images → store as style reference (in the top upload zone context)
-    if (imgFiles.length > 0) {
-      const loaded = await Promise.all(imgFiles.slice(0, 6).map(readFileAsBase64))
-      setRefImages(prev => [...prev, ...loaded].slice(0, 6))
-    }
+  // SVG upload → extract style → auto-fill DESIGN.md
+  const handleSVGFiles = useCallback(async (files: FileList | File[]) => {
+    const svgFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.svg') || f.type === 'image/svg+xml').slice(0, 100)
+    if (svgFiles.length === 0) return
+    setSvgExtracting(true)
+    const texts = await Promise.all(svgFiles.map(f => f.text()))
+    const merged = mergeExtracted(texts.map(extractStyleFromSVG))
+    const newSpec = { ...DEFAULT_SPEC, ...Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined)) } as IconSpec
+    setSpec(newSpec)
+    setCustomMD(specToDesignMD(newSpec, []))
+    setSvgExtracting(false)
   }, [])
 
   // Concept images — uploaded near the names textarea, used for visual concept reference
@@ -478,17 +441,6 @@ export default function IconPage() {
     return () => window.removeEventListener('paste', onPaste)
   }, [handleConceptFiles])
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) handleFiles(e.target.files)
-    e.target.value = ''
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files)
-  }
-
   const handleConceptDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOverConcept(false)
@@ -498,23 +450,27 @@ export default function IconPage() {
     if (files.length > 0) handleConceptFiles(files)
   }
 
-  const parsedNames = namesInput
-    .split(/[\n,]+/)
-    .map((n) => n.trim().toLowerCase())
-    .filter(Boolean)
-    .slice(0, 16)
-
-  const setSpecField = <K extends keyof IconSpec>(key: K, value: IconSpec[K]) => {
-    setSpec((prev) => ({ ...prev, [key]: value }))
-  }
+  // Feature 5: parse names with optional descriptions
+  const parsedNamesWithDesc = useMemo(() => parseNamesWithDesc(namesInput), [namesInput])
+  const parsedNames = parsedNamesWithDesc.map(item => item.name)
+  const descriptions: Record<string, string> = useMemo(() => {
+    const map: Record<string, string> = {}
+    parsedNamesWithDesc.forEach(item => { if (item.description) map[item.name] = item.description })
+    return map
+  }, [parsedNamesWithDesc])
 
   const buildPayload = useCallback((names: string[]) => ({
     spec,
     names,
-    paletteColors: spec.colorMode === 'multi' && paletteColors.length > 0 ? paletteColors : undefined,
-    refImages: refImages.length > 0 ? refImages.map(i => ({ base64: i.base64, mime: i.mime })) : undefined,
-    conceptImages: conceptImages.length > 0 ? conceptImages.map(i => ({ base64: i.base64, mime: i.mime })) : undefined,
-  }), [spec, paletteColors, refImages, conceptImages])
+    designMd: customMD ?? undefined,
+    // Only include concept images when user explicitly wants visual reference mode
+    conceptImages: conceptMode === 'visual' && conceptImages.length > 0
+      ? conceptImages.map(i => ({ base64: i.base64, mime: i.mime }))
+      : undefined,
+    conceptHint: conceptHint.trim() || undefined,
+    lucideBases: Object.keys(lucideBases).length > 0 ? lucideBases : undefined,
+    descriptions: Object.keys(descriptions).length > 0 ? descriptions : undefined,
+  }), [spec, customMD, conceptImages, conceptHint, conceptMode, lucideBases, descriptions])
 
   // Mark all icons with an error for the given variant index
   const setVariantError = useCallback((variantIndex: number, msg: string) => {
@@ -582,10 +538,19 @@ export default function IconPage() {
           }))
         }
       }
-      // Stream ended — if nothing was ever parsed, flag it
-      if (!parseIcons(buffer).size) {
+      // Stream ended — mark any icon that still has null for this variant as failed
+      const finalParsed = parseIcons(buffer)
+      if (!finalParsed.size) {
         const hint = buffer.replace(/\x00/g, '').trim().slice(0, 120) || '空响应'
         setVariantError(variantIndex, `未解析到图标内容：${hint}`)
+      } else {
+        // Some icons may have been missed in the response — mark them individually
+        setIconVariants(prev => prev.map(item => {
+          if (item.variants[variantIndex] !== null || item.errors[variantIndex] !== null) return item
+          const next = [...item.errors]
+          next[variantIndex] = '未生成（点 ↻ 重试）'
+          return { ...item, errors: next }
+        }))
       }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
@@ -603,6 +568,12 @@ export default function IconPage() {
 
     const names = parsedNames
     if (names.length === 0) return
+
+    // Fetch Lucide bases in parallel — icons not in Lucide will get null and fall back to scratch generation
+    const baseResults = await Promise.all(names.map(async name => [name, await fetchLucideIcon(name)] as const))
+    const newBases: Record<string, string> = {}
+    baseResults.forEach(([name, svg]) => { if (svg) newBases[name] = svg })
+    setLucideBases(newBases)
 
     // Init all icons with empty variant slots
     setIconVariants(names.map(name => ({
@@ -736,11 +707,29 @@ export default function IconPage() {
   }, [downloadPopover])
 
   // Auto-computed DESIGN.md block from current spec; user can override with customMD
-  const computedMD = useMemo(() => specToDesignMD(spec, paletteColors), [spec, paletteColors])
+  const computedMD = useMemo(() => specToDesignMD(spec, []), [spec])
   const displayMD = customMD ?? computedMD
 
   const adoptedCount = iconVariants.filter(i => i.adopted !== null).length
   const hasReadyIcons = adoptedCount > 0
+
+  // Feature 2: get preview icon data
+  const previewIcon = previewIconName ? iconVariants.find(i => i.name === previewIconName) : null
+  const previewSvg = previewIcon && previewIcon.adopted !== null ? previewIcon.variants[previewIcon.adopted] : null
+
+  // Feature 3: get code panel icon data
+  const codePanelIconData = codePanelIcon ? iconVariants.find(i => i.name === codePanelIcon) : null
+  const codePanelAdoptedSvg = codePanelIconData && codePanelIconData.adopted !== null
+    ? codePanelIconData.variants[codePanelIconData.adopted]
+    : null
+
+  const getCodePanelContent = (svg: string | null): string => {
+    if (!svg) return ''
+    if (codePanelTab === 'svg') return svg
+    if (codePanelTab === 'jsx') return svgToJSX(svg)
+    if (codePanelTab === 'path') return extractPaths(svg)
+    return svg
+  }
 
   const handleTestConnection = async () => {
     setDiagLoading(true)
@@ -761,6 +750,10 @@ export default function IconPage() {
       setDiagLoading(false)
     }
   }
+
+  // suppress unused warning
+  void handleDownload
+  void handleDownloadIcon
 
   return (
     <div
@@ -873,675 +866,725 @@ export default function IconPage() {
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel */}
+        {/* Left panel — Style DNA */}
         <aside
           className="flex flex-col overflow-y-auto flex-shrink-0"
           style={{
-            width: '288px',
+            width: '400px',
             borderRight: '1px solid var(--hairline)',
             backgroundColor: 'var(--surface-soft)',
             padding: '20px 16px',
           }}
         >
-          {/* Upload zone */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ ...SECTION_LABEL, marginBottom: 0 }}>从参考图提取风格</span>
-              {(uploadedSVGs.length > 0 || refImages.length > 0) && (
-                <button onClick={() => { setUploadedSVGs([]); setRefImages([]); setExtractDone(false); setPaletteColors([]) }}
-                  style={{ fontSize: '10px', color: 'var(--muted-soft)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  清除
-                </button>
-              )}
-            </div>
-            <input ref={fileInputRef} type="file"
-              accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif"
-              multiple style={{ display: 'none' }} onChange={handleFileInput} />
+          {/* SVG upload zone */}
+          <div style={{ marginBottom: '16px' }}>
+            <input ref={svgInputRef} type="file" accept=".svg,image/svg+xml" multiple style={{ display: 'none' }}
+              onChange={e => { if (e.target.files?.length) handleSVGFiles(e.target.files); e.target.value = '' }} />
             <div
-              onClick={() => fileInputRef.current?.click()}
-              onDrop={handleDrop}
-              onDragOver={e => { e.preventDefault(); setIsDragOver(true) }}
-              onDragLeave={() => setIsDragOver(false)}
+              onClick={() => svgInputRef.current?.click()}
+              onDrop={e => { e.preventDefault(); setIsDragOverSVG(false); handleSVGFiles(e.dataTransfer.files) }}
+              onDragOver={e => { e.preventDefault(); setIsDragOverSVG(true) }}
+              onDragLeave={() => setIsDragOverSVG(false)}
               style={{
-                border: `1.5px dashed ${isDragOver ? 'var(--ink)' : 'var(--hairline)'}`,
-                borderRadius: '10px', padding: '12px', textAlign: 'center',
+                border: `1.5px dashed ${isDragOverSVG ? 'var(--ink)' : 'var(--hairline)'}`,
+                borderRadius: '10px', padding: '14px 12px', textAlign: 'center',
                 cursor: 'pointer',
-                backgroundColor: isDragOver ? 'var(--surface-card)' : 'var(--canvas)',
+                backgroundColor: isDragOverSVG ? 'var(--surface-card)' : 'var(--canvas)',
                 transition: 'all 0.15s',
               }}
             >
-              {extracting ? (
+              {svgExtracting ? (
                 <p style={{ fontSize: '11px', color: 'var(--muted)' }}>分析样式中…</p>
-              ) : extractDone ? (
-                <p style={{ fontSize: '11px', color: 'var(--ink)', fontWeight: 600 }}>✓ SVG 样式已提取</p>
               ) : (
                 <>
-                  <p style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '2px' }}>
-                    上传参考图 / SVG
-                  </p>
-                  <p style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>
-                    PNG · JPG · SVG，最多 100 个
-                  </p>
+                  <p style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '2px' }}>上传参考 SVG</p>
+                  <p style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>自动提取风格 · 填入规范</p>
                 </>
               )}
             </div>
-
-            {/* Image thumbnails */}
-            {refImages.length > 0 && (
-              <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {refImages.map((img, i) => (
-                  <div key={i} style={{ position: 'relative' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.preview} alt={img.name}
-                      style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--hairline)' }} />
-                    <button
-                      onClick={e => { e.stopPropagation(); setRefImages(prev => prev.filter((_, j) => j !== i)) }}
-                      style={{
-                        position: 'absolute', top: '-4px', right: '-4px',
-                        width: '14px', height: '14px', borderRadius: '50%',
-                        backgroundColor: 'var(--ink)', color: '#fff',
-                        border: 'none', cursor: 'pointer', fontSize: '9px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        lineHeight: 1,
-                      }}>×</button>
-                  </div>
-                ))}
-                <div style={{ fontSize: '10px', color: 'var(--muted-soft)', alignSelf: 'center', marginLeft: '2px' }}>
-                  {refImages.length} 张参考图
-                </div>
-              </div>
-            )}
-
-            {/* SVG file names */}
-            {uploadedSVGs.length > 0 && !extracting && (
-              <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {uploadedSVGs.slice(0, 4).map(name => (
-                  <span key={name} style={{
-                    fontSize: '10px', color: 'var(--muted)',
-                    backgroundColor: 'var(--surface-card)', border: '1px solid var(--hairline)',
-                    borderRadius: '4px', padding: '2px 6px',
-                    maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{name}</span>
-                ))}
-                {uploadedSVGs.length > 4 && (
-                  <span style={{ fontSize: '10px', color: 'var(--muted-soft)', alignSelf: 'center' }}>
-                    +{uploadedSVGs.length - 4}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
 
-          {/* ── Style card with tab toggle ── */}
-          <div style={{
-            marginBottom: '20px',
-            border: '1px solid var(--hairline)',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            backgroundColor: 'var(--canvas)',
-          }}>
-            {/* Tab bar */}
-            <div style={{
-              display: 'flex',
-              borderBottom: '1px solid var(--hairline)',
-              backgroundColor: 'var(--surface-soft)',
-              padding: '4px',
-              gap: '2px',
-            }}>
-              {(['controls', 'spec'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setSpecTab(tab)}
-                  style={{
-                    flex: 1,
-                    padding: '5px 0',
-                    fontSize: '11px',
-                    fontWeight: 500,
-                    borderRadius: '7px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    backgroundColor: specTab === tab ? 'var(--ink)' : 'transparent',
-                    color: specTab === tab ? '#fff' : 'var(--muted)',
-                  }}
-                >
-                  {tab === 'controls' ? '风格参数' : 'DESIGN.md'}
-                </button>
-              ))}
+          <div style={{ borderTop: '1px solid var(--hairline)', margin: '0 0 16px' }} />
+
+          {/* DESIGN.md spec editor */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={SECTION_LABEL}>风格规范（DESIGN.md）</span>
+              {customMD !== null && (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={() => setCustomMD(null)}
+                    style={{ fontSize: '10px', color: 'var(--muted)', background: 'none', border: '1px solid var(--hairline)', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer' }}
+                  >↻ 重置</button>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(displayMD).then(() => { setCopiedMD(true); setTimeout(() => setCopiedMD(false), 2000) }).catch(() => {}) }}
+                    style={{ fontSize: '10px', color: copiedMD ? 'var(--brand-mint)' : 'var(--muted)', background: 'none', border: '1px solid var(--hairline)', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontWeight: copiedMD ? 600 : 400, transition: 'color 0.15s' }}
+                  >{copiedMD ? '✓ 已复制' : '复制'}</button>
+                </div>
+              )}
             </div>
 
-            {/* Controls tab */}
-            {specTab === 'controls' && (
-              <div style={{ padding: '14px 14px 4px' }}>
-            <ChipGroup
-              label="风格类型"
-              options={[
-                { label: '线性描边', value: 'outline' as Style },
-                { label: '实心填充', value: 'filled' as Style },
-                { label: '双色调', value: 'duotone' as Style },
-              ]}
-              value={spec.style}
-              onChange={(v) => setSpecField('style', v)}
-            />
-
-              <ChipGroup
-                label="网格尺寸"
-                options={[
-                  { label: '16px', value: 16 as GridSize },
-                  { label: '20px', value: 20 as GridSize },
-                  { label: '24px', value: 24 as GridSize },
-                  { label: '32px', value: 32 as GridSize },
-                ]}
-                value={spec.gridSize}
-                onChange={(v) => setSpecField('gridSize', v)}
-              />
-
-              {spec.style !== 'filled' && (
-                <ChipGroup
-                  label="描边粗细"
-                  options={[
-                    { label: '1px', value: 1 as StrokeWeight },
-                    { label: '1.5px', value: 1.5 as StrokeWeight },
-                    { label: '2px', value: 2 as StrokeWeight },
-                    { label: '2.5px', value: 2.5 as StrokeWeight },
-                  ]}
-                  value={spec.strokeWeight}
-                  onChange={(v) => setSpecField('strokeWeight', v)}
-                />
-              )}
-
-              <ChipGroup
-                label="端点样式"
-                options={[
-                  { label: '圆角端点', value: 'round' as Cap },
-                  { label: '方形端点', value: 'square' as Cap },
-                ]}
-                value={spec.cap}
-                onChange={(v) => setSpecField('cap', v)}
-              />
-
-              <ChipGroup
-                label="转角风格"
-                options={[
-                  { label: '锐利', value: 'sharp' as Corner },
-                  { label: '微圆', value: 'subtle' as Corner },
-                  { label: '圆润', value: 'round' as Corner },
-                ]}
-                value={spec.corner}
-                onChange={(v) => setSpecField('corner', v)}
-              />
-
-              <ChipGroup
-                label="色彩模式"
-                options={[
-                  { label: '单色', value: 'single' as ColorMode },
-                  { label: '多色', value: 'multi' as ColorMode },
-                ]}
-                value={spec.colorMode}
-                onChange={(v) => {
-                  setSpecField('colorMode', v)
-                  if (v === 'single') setPaletteColors([])
-                }}
-              />
-
-              <ChipGroup
-                label="光学边距"
-                options={[
-                  { label: '1px', value: 1 as OpticalPad },
-                  { label: '2px', value: 2 as OpticalPad },
-                  { label: '3px', value: 3 as OpticalPad },
-                ]}
-                value={spec.opticalPad}
-                onChange={(v) => setSpecField('opticalPad', v)}
-              />
-
-              {/* Palette color editor — shown when multi-color mode */}
-              {spec.colorMode === 'multi' && (
-            <div style={{ marginBottom: '16px', marginTop: '-4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>
-                  {paletteColors.length > 0 ? `${paletteColors.length} 个色值` : '手动添加色值'}
-                </span>
-                {paletteColors.length > 0 && (
-                  <button onClick={() => setPaletteColors([])}
-                    style={{ fontSize: '10px', color: 'var(--muted-soft)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    清空
-                  </button>
-                )}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                {paletteColors.map((color, i) => (
-                  <div key={i} title={color} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px',
-                    backgroundColor: 'var(--surface-card)', border: '1px solid var(--hairline)',
-                    borderRadius: '6px', padding: '3px 6px 3px 4px' }}>
-                    <div style={{ width: '14px', height: '14px', borderRadius: '3px', backgroundColor: color,
-                      border: '1px solid var(--hairline)', flexShrink: 0 }} />
-                    <span style={{ fontSize: '10px', fontFamily: 'monospace', color: 'var(--muted)', letterSpacing: '-0.01em' }}>
-                      {color}
-                    </span>
-                    <button onClick={() => setPaletteColors(prev => prev.filter((_, j) => j !== i))}
-                      style={{ marginLeft: '2px', fontSize: '10px', color: 'var(--muted-soft)', background: 'none',
-                        border: 'none', cursor: 'pointer', lineHeight: 1, padding: '0 1px' }}>×</button>
-                  </div>
-                ))}
-                {/* Add color button */}
-                <div style={{ position: 'relative' }}>
-                  <input ref={colorInputRef} type="color" defaultValue="#6366f1"
-                    onChange={e => {
-                      const hex = e.target.value.toLowerCase()
-                      setPaletteColors(prev => prev.includes(hex) ? prev : [...prev, hex].slice(0, 16))
-                    }}
-                    style={{ position: 'absolute', opacity: 0, width: '28px', height: '28px', cursor: 'pointer', top: 0, left: 0 }} />
-                  <button onClick={() => colorInputRef.current?.click()}
-                    style={{ width: '28px', height: '28px', borderRadius: '6px',
-                      backgroundColor: 'var(--canvas)', border: '1.5px dashed var(--hairline)',
-                      cursor: 'pointer', fontSize: '14px', color: 'var(--muted-soft)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      lineHeight: 1 }}>+</button>
-                </div>
-              </div>
-              {paletteColors.length === 0 && (
-                <p style={{ fontSize: '10px', color: 'var(--muted-soft)', marginTop: '6px', lineHeight: 1.5 }}>
-                  上传含色彩的 SVG 会自动提取，或点击 + 手动添加
-                </p>
-              )}
-            </div>
-              )}
-              </div>
-            )}
-
-            {/* DESIGN.md tab */}
-            {specTab === 'spec' && (
-              <div style={{ padding: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    icon-style
-                  </span>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    {customMD !== null && (
-                      <button
-                        onClick={() => setCustomMD(null)}
-                        title="重置为当前设置"
-                        style={{ fontSize: '11px', color: 'var(--muted)', background: 'none', border: '1px solid var(--hairline)', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer' }}
-                      >↻ 重置</button>
-                    )}
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(displayMD).then(() => { setCopiedMD(true); setTimeout(() => setCopiedMD(false), 2000) }).catch(() => {}) }}
-                      style={{ fontSize: '11px', color: copiedMD ? 'var(--brand-mint)' : 'var(--body)', background: 'none', border: '1px solid var(--hairline)', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontWeight: copiedMD ? 600 : 400, transition: 'color 0.15s' }}
-                    >{copiedMD ? '✓ 已复制' : '复制'}</button>
+            {customMD !== null ? (
+              <>
+                {/* Dark spec card — preview of extracted params */}
+                <div style={{
+                  backgroundColor: '#1a1a1a',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  marginBottom: '10px',
+                  fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+                    {([
+                      ['描边色', spec.colorMode === 'multi' ? '多色' : 'currentColor'],
+                      ['描边宽', `${spec.strokeWeight}px`],
+                      ['视图框', `0 0 ${spec.gridSize} ${spec.gridSize}`],
+                      ['端点', spec.cap === 'round' ? '圆头' : '方形'],
+                      ['拐点', spec.corner === 'round' ? '圆角' : spec.corner === 'subtle' ? '微圆' : '锐利'],
+                      ['填充', spec.style === 'outline' ? '无' : spec.style === 'filled' ? '实心' : '混合'],
+                    ] as [string, string][]).map(([label, value]) => (
+                      <div key={label}>
+                        <span style={{ fontSize: '9px', color: '#666', display: 'block', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+                        <span style={{ fontSize: '11px', color: '#e8e8e8', fontWeight: 500 }}>{value}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
+
                 <textarea
                   value={displayMD}
                   onChange={e => setCustomMD(e.target.value)}
                   spellCheck={false}
-                  style={{ width: '100%', fontFamily: '"JetBrains Mono", "Fira Code", monospace', fontSize: '10px', lineHeight: 1.65, color: 'var(--body)', backgroundColor: 'var(--surface-soft)', border: `1px solid ${customMD !== null ? 'var(--muted-soft)' : 'var(--hairline)'}`, borderRadius: '8px', padding: '10px', resize: 'vertical', outline: 'none', boxSizing: 'border-box', display: 'block', transition: 'border-color 0.2s', minHeight: '240px' }}
-                />
-                <p style={{ fontSize: '10px', color: 'var(--muted-soft)', marginTop: '5px', lineHeight: 1.5 }}>
-                  随风格设置自动更新 · 可直接编辑后复制
-                </p>
-              </div>
-            )}
-          </div>{/* end style card */}
-
-          {/* Icon names textarea */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-              <span style={{ ...SECTION_LABEL, marginBottom: 0 }}>图标名称</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {identifying && (
-                  <span style={{ fontSize: '10px', color: 'var(--muted)', fontStyle: 'italic' }}>识别中…</span>
-                )}
-                {/* Concept image upload trigger */}
-                <input ref={conceptInputRef} type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  multiple style={{ display: 'none' }}
-                  onChange={e => { if (e.target.files?.length) handleConceptFiles(e.target.files); e.target.value = '' }} />
-                <button
-                  onClick={() => conceptInputRef.current?.click()}
-                  title="上传图片帮助描述图标含义，AI 将参考图片内容生成"
                   style={{
-                    fontSize: '10px', color: isDragOverConcept ? 'var(--ink)' : 'var(--muted)',
-                    background: isDragOverConcept ? 'var(--surface-card)' : 'none',
-                    border: `1px dashed ${isDragOverConcept ? 'var(--ink)' : 'var(--hairline)'}`,
-                    borderRadius: '5px', padding: '2px 7px', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '3px', transition: 'all 0.15s',
-                  }}>
-                  📎 概念图
-                </button>
-              </div>
-            </div>
-
-            {/* Drop zone wrapping the textarea */}
-            <div
-              onDrop={handleConceptDrop}
-              onDragOver={e => { e.preventDefault(); setIsDragOverConcept(true) }}
-              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverConcept(false) }}
-              style={{ position: 'relative' }}
-            >
-              <textarea
-                value={namesInput}
-                onChange={(e) => setNamesInput(e.target.value)}
-                placeholder="search, home, settings, user, star, heart, bell, trash, edit, download, share, menu"
-                rows={5}
-                style={{
-                  width: '100%',
-                  backgroundColor: 'var(--canvas)',
-                  color: identifying ? 'var(--muted-soft)' : 'var(--body)',
-                  border: `1px solid ${isDragOverConcept ? 'var(--ink)' : identifying ? 'var(--brand-mint)' : 'var(--hairline)'}`,
-                  borderRadius: '8px',
-                  padding: '8px 10px',
-                  fontSize: '12px',
-                  fontFamily: 'inherit',
-                  lineHeight: 1.6,
-                  resize: 'vertical',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s, color 0.2s',
-                  display: 'block',
-                }}
-              />
-              {/* Drag overlay hint */}
-              {isDragOverConcept && (
-                <div style={{
-                  position: 'absolute', inset: 0, borderRadius: '8px', pointerEvents: 'none',
-                  backgroundColor: 'rgba(0,0,0,0.04)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: '1.5px dashed var(--ink)',
-                }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>松开添加概念图</span>
-                </div>
-              )}
-            </div>
-
-            <div style={{ fontSize: '10px', color: 'var(--muted-soft)', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontStyle: 'italic' }}>支持粘贴 / 拖入图片自动识别</span>
-              <span>{parsedNames.length}/16 个图标</span>
-            </div>
-
-            {/* Concept image thumbnails */}
-            {conceptImages.length > 0 && (
-              <div style={{ marginTop: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>
-                    概念参考图 · {conceptImages.length} 张
-                  </span>
-                  <button onClick={() => setConceptImages([])}
-                    style={{ fontSize: '10px', color: 'var(--muted-soft)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    清除
-                  </button>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                  {conceptImages.map((img, i) => (
-                    <div key={i} style={{ position: 'relative' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.preview} alt={img.name}
-                        style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '5px',
-                          border: '1px solid var(--hairline)' }} />
-                      <button
-                        onClick={() => setConceptImages(prev => prev.filter((_, j) => j !== i))}
-                        style={{
-                          position: 'absolute', top: '-4px', right: '-4px',
-                          width: '13px', height: '13px', borderRadius: '50%',
-                          backgroundColor: 'var(--ink)', color: '#fff',
-                          border: 'none', cursor: 'pointer', fontSize: '8px',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>×</button>
-                    </div>
-                  ))}
-                  <button onClick={() => conceptInputRef.current?.click()}
-                    style={{ width: '36px', height: '36px', borderRadius: '5px',
-                      border: '1.5px dashed var(--hairline)', backgroundColor: 'transparent',
-                      cursor: 'pointer', fontSize: '16px', color: 'var(--muted-soft)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                </div>
+                    width: '100%', boxSizing: 'border-box',
+                    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                    fontSize: '10px', lineHeight: 1.65, color: 'var(--body)',
+                    backgroundColor: 'var(--canvas)',
+                    border: '1px solid var(--muted-soft)',
+                    borderRadius: '8px', padding: '10px', resize: 'vertical',
+                    outline: 'none', display: 'block',
+                    minHeight: '160px', maxHeight: '400px',
+                  }}
+                />
+                <p style={{ fontSize: '10px', color: 'var(--muted-soft)', marginTop: '4px', fontStyle: 'italic' }}>
+                  生成时以此为准 · ↻ 重置可恢复默认
+                </p>
+              </>
+            ) : (
+              /* Empty state */
+              <div style={{
+                border: '1.5px dashed var(--hairline)', borderRadius: '8px',
+                padding: '20px 16px', textAlign: 'center',
+                backgroundColor: 'var(--canvas)',
+              }}>
+                <p style={{ fontSize: '11px', color: 'var(--muted-soft)', marginBottom: '10px' }}>
+                  尚未配置风格规范
+                </p>
+                <button
+                  onClick={() => setCustomMD(computedMD)}
+                  style={{
+                    fontSize: '11px', fontWeight: 500,
+                    color: 'var(--ink)', backgroundColor: 'var(--surface-card)',
+                    border: '1px solid var(--hairline)', borderRadius: '6px',
+                    padding: '5px 14px', cursor: 'pointer',
+                  }}
+                >填入默认模板</button>
               </div>
             )}
           </div>
 
-          {/* Generate button */}
-          <button
-            onClick={handleGenerate}
-            disabled={parsedNames.length === 0}
-            style={{
-              width: '100%',
-              backgroundColor: generating ? 'var(--surface-strong)' : 'var(--ink)',
-              color: generating ? 'var(--muted)' : '#ffffff',
-              border: `1px solid ${generating ? 'var(--hairline)' : 'var(--ink)'}`,
-              borderRadius: '10px',
-              padding: '10px 16px',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: parsedNames.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: parsedNames.length === 0 ? 0.5 : 1,
-              transition: 'all 0.15s',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {generating
-              ? genPhase === 'thinking'
-                ? '⏹ 模型思考中…'
-                : '⏹ 生成中，停止'
-              : `✦ 生成 ${parsedNames.length > 0 ? `${parsedNames.length} 个 ` : ''}Icon（每个出 ${VARIANT_COUNT} 稿）`}
-          </button>
         </aside>
 
         {/* Right panel */}
-        <main
-          className="flex-1 overflow-y-auto"
-          style={{ padding: '24px' }}
-        >
-          {iconVariants.length === 0 ? (
-            /* Empty state */
-            <div
-              className="flex flex-col items-center justify-center h-full"
-              style={{ color: 'var(--muted-soft)' }}
-            >
-              <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.4 }}>◈</div>
-              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--muted)', marginBottom: '6px' }}>
-                配置风格，点击生成
-              </p>
-              <p style={{ fontSize: '12px', color: 'var(--muted-soft)' }}>
-                每个图标生成 3 个变体，点选最满意的采用
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-              {/* Column header */}
-              <div style={{
-                display: 'grid', gridTemplateColumns: '80px 1fr 1fr 1fr 64px',
-                gap: '8px', padding: '0 0 10px',
-                borderBottom: '1px solid var(--hairline)', marginBottom: '4px',
-              }}>
-                <span style={{ fontSize: '10px', color: 'var(--muted-soft)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>图标名称</span>
-                {Array.from({ length: VARIANT_COUNT }, (_, i) => (
-                  <span key={i} style={{ fontSize: '10px', color: 'var(--muted-soft)', fontWeight: 600, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    变体 {i + 1}
-                  </span>
-                ))}
-                <span />
+        <main className="flex-1 overflow-hidden" style={{ display: 'flex', flexDirection: 'column' }}>
+
+          {/* ── Icon generation input (top of right panel) ── */}
+          <div style={{
+            flexShrink: 0,
+            padding: '16px 24px',
+            borderBottom: '1px solid var(--hairline)',
+            backgroundColor: 'var(--surface-soft)',
+            display: 'flex',
+            gap: '16px',
+            alignItems: 'flex-start',
+          }}>
+            {/* Names textarea column */}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ ...SECTION_LABEL, marginBottom: 0 }}>图标名称</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {identifying && <span style={{ fontSize: '10px', color: 'var(--muted)', fontStyle: 'italic' }}>识别中…</span>}
+                  <input ref={conceptInputRef} type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    multiple style={{ display: 'none' }}
+                    onChange={e => { if (e.target.files?.length) handleConceptFiles(e.target.files); e.target.value = '' }} />
+                  <button
+                    onClick={() => conceptInputRef.current?.click()}
+                    title="上传图片帮助描述图标含义"
+                    style={{
+                      fontSize: '10px', color: 'var(--muted)',
+                      background: 'none', border: '1px dashed var(--hairline)',
+                      borderRadius: '5px', padding: '2px 7px', cursor: 'pointer',
+                    }}>📎 概念图</button>
+                </div>
+              </div>
+              <div
+                onDrop={handleConceptDrop}
+                onDragOver={e => { e.preventDefault(); setIsDragOverConcept(true) }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverConcept(false) }}
+                style={{ position: 'relative' }}
+              >
+                <textarea
+                  value={namesInput}
+                  onChange={(e) => setNamesInput(e.target.value)}
+                  placeholder={'robot\nhome: 简洁的房屋图标\nsettings: 齿轮风格...'}
+                  rows={3}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    backgroundColor: 'var(--canvas)',
+                    color: identifying ? 'var(--muted-soft)' : 'var(--body)',
+                    border: `1px solid ${isDragOverConcept ? 'var(--ink)' : identifying ? 'var(--brand-mint)' : 'var(--hairline)'}`,
+                    borderRadius: '8px', padding: '8px 10px',
+                    fontSize: '12px', fontFamily: 'inherit', lineHeight: 1.6,
+                    resize: 'none', outline: 'none', display: 'block',
+                    transition: 'border-color 0.2s',
+                  }}
+                />
+                {isDragOverConcept && (
+                  <div style={{
+                    position: 'absolute', inset: 0, borderRadius: '8px', pointerEvents: 'none',
+                    backgroundColor: 'rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1.5px dashed var(--ink)',
+                  }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>松开添加概念图</span>
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--muted-soft)', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontStyle: 'italic' }}>支持"名称: 描述"格式 · 粘贴/拖入图片自动识别</span>
+                <span>{parsedNames.length}/16</span>
               </div>
 
-              {/* Icon rows */}
-              {iconVariants.map((icon) => {
-                const adoptedSvg = icon.adopted !== null ? icon.variants[icon.adopted] : null
-                return (
-                  <div key={icon.name} style={{
-                    display: 'grid', gridTemplateColumns: '80px 1fr 1fr 1fr 64px',
-                    gap: '8px', alignItems: 'start',
-                    padding: '8px 0',
-                    borderBottom: '1px solid var(--hairline)',
-                  }}>
-                    {/* Name */}
-                    <span style={{
-                      fontSize: '11px', fontFamily: 'monospace', color: 'var(--muted)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      paddingTop: '10px',
-                    }}>{icon.name}</span>
-
-                    {/* 3 variant cells */}
-                    {icon.variants.map((svg, vi) => {
-                      const isAdopted = icon.adopted === vi
-                      const err = icon.errors[vi]
-                      return (
-                        <div
-                          key={vi}
-                          onClick={() => {
-                            if (!svg) return
-                            setIconVariants(prev => prev.map(item =>
-                              item.name === icon.name
-                                ? { ...item, adopted: item.adopted === vi ? null : vi }
-                                : item
-                            ))
-                          }}
-                          title={err ?? undefined}
-                          style={{
-                            width: '100%', aspectRatio: '1 / 1',
-                            borderRadius: '10px',
-                            border: `2px solid ${isAdopted ? 'var(--brand-mint)' : err ? '#f87171' : 'var(--hairline)'}`,
-                            backgroundColor: isAdopted
-                              ? 'color-mix(in srgb, var(--brand-mint) 6%, var(--canvas))'
-                              : err ? 'color-mix(in srgb, #f87171 6%, var(--canvas))' : 'var(--canvas)',
-                            cursor: svg ? 'pointer' : 'default',
-                            position: 'relative',
-                            transition: 'border-color 0.15s, background-color 0.15s',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {/* SVG coordinate-native grid — scales with viewBox automatically */}
-                          {!err && (
-                            <svg
-                              viewBox={`0 0 ${spec.gridSize} ${spec.gridSize}`}
-                              width="100%" height="100%"
-                              style={{ position: 'absolute', inset: 0, display: 'block' }}
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <defs>
-                                <pattern
-                                  id={`g-${icon.name}-${vi}`}
-                                  x="0" y="0" width="1" height="1"
-                                  patternUnits="userSpaceOnUse"
-                                >
-                                  <path d="M 1 0 L 0 0 0 1" fill="none" stroke="currentColor" strokeWidth="0.05"/>
-                                </pattern>
-                              </defs>
-                              <rect width={spec.gridSize} height={spec.gridSize} fill={`url(#g-${icon.name}-${vi})`} opacity="0.18"/>
-                            </svg>
-                          )}
-
-                          {svg ? (
-                            <>
-                              {/* Icon fills ~90% of card — SVG viewBox handles the rest */}
-                              <div
-                                style={{ position: 'absolute', inset: '5%', lineHeight: 0 }}
-                                dangerouslySetInnerHTML={{ __html: svgForDisplay(svg) }}
-                              />
-                              {isAdopted && (
-                                <div style={{
-                                  position: 'absolute', top: '5px', right: '6px',
-                                  fontSize: '9px', fontWeight: 700, color: 'var(--brand-mint)',
-                                  lineHeight: 1,
-                                }}>✓</div>
-                              )}
-                            </>
-                          ) : err ? (
-                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px' }}>
-                              <span style={{ fontSize: '14px', lineHeight: 1 }}>⚠</span>
-                              <span style={{ fontSize: '9px', color: '#ef4444', textAlign: 'center', lineHeight: 1.3, maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {err.slice(0, 30)}
-                              </span>
-                            </div>
-                          ) : (
-                            <div style={{
-                              position: 'absolute', inset: '30%',
-                              backgroundColor: 'var(--hairline)', borderRadius: '4px',
-                              animation: 'pulse 1.5s ease-in-out infinite',
-                            }} />
-                          )}
-                        </div>
-                      )
-                    })}
-
-                    {/* Row actions */}
-                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', paddingTop: '10px' }}>
-                      {/* Copy adopted */}
-                      <button
-                        onClick={() => adoptedSvg && handleCopyIcon(adoptedSvg, icon.name)}
-                        disabled={!adoptedSvg}
-                        title="复制已采用的变体 SVG"
+              {/* Concept images row */}
+              {conceptImages.length > 0 && (
+                <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '3px', backgroundColor: 'var(--surface-card)', borderRadius: '6px', padding: '2px 3px' }}>
+                    {([
+                      { value: 'name-only', label: '仅识别' },
+                      { value: 'visual',    label: '辅助造型' },
+                    ] as const).map(opt => (
+                      <button key={opt.value} onClick={() => setConceptMode(opt.value)}
                         style={{
-                          width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--hairline)',
-                          backgroundColor: copiedName === icon.name ? 'var(--brand-mint)' : 'var(--canvas)',
-                          color: copiedName === icon.name ? 'var(--ink)' : 'var(--muted)',
-                          cursor: adoptedSvg ? 'pointer' : 'not-allowed',
-                          opacity: adoptedSvg ? 1 : 0.3, fontSize: '11px',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.15s', flexShrink: 0,
-                        }}
-                      >{copiedName === icon.name ? '✓' : '⎘'}</button>
-                      {/* Download adopted — with size picker */}
-                      <div data-dl-pop style={{ position: 'relative' }}>
+                          padding: '2px 7px', fontSize: '10px', fontWeight: 500,
+                          borderRadius: '4px', border: 'none', cursor: 'pointer',
+                          backgroundColor: conceptMode === opt.value ? 'var(--ink)' : 'transparent',
+                          color: conceptMode === opt.value ? '#fff' : 'var(--muted)',
+                        }}>{opt.label}</button>
+                    ))}
+                  </div>
+                  {conceptImages.map((img, i) => (
+                    <div key={i} style={{ position: 'relative' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.preview} alt={img.name}
+                        style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '5px', border: '1px solid var(--hairline)' }} />
+                      <button onClick={() => setConceptImages(prev => prev.filter((_, j) => j !== i))}
+                        style={{ position: 'absolute', top: '-4px', right: '-4px', width: '13px', height: '13px', borderRadius: '50%', backgroundColor: 'var(--ink)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    </div>
+                  ))}
+                  <button onClick={() => conceptInputRef.current?.click()}
+                    style={{ width: '32px', height: '32px', borderRadius: '5px', border: '1.5px dashed var(--hairline)', backgroundColor: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--muted-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                  <button onClick={() => setConceptImages([])} style={{ fontSize: '10px', color: 'var(--muted-soft)', background: 'none', border: 'none', cursor: 'pointer' }}>清除</button>
+                </div>
+              )}
+
+              {/* Concept hint */}
+              {(conceptImages.length > 0 || conceptHint) && (
+                <input type="text" value={conceptHint} onChange={e => setConceptHint(e.target.value)}
+                  placeholder="描述补充：海豚剪影、数据库圆柱…"
+                  style={{ marginTop: '6px', width: '100%', boxSizing: 'border-box', backgroundColor: 'var(--canvas)', color: 'var(--body)', border: '1px solid var(--hairline)', borderRadius: '7px', padding: '5px 9px', fontSize: '11px', fontFamily: 'inherit', outline: 'none', display: 'block' }} />
+              )}
+            </div>
+
+            {/* Generate button — vertical, right side */}
+            <button
+              onClick={handleGenerate}
+              disabled={parsedNames.length === 0}
+              style={{
+                flexShrink: 0, alignSelf: 'stretch',
+                width: '120px',
+                backgroundColor: generating ? 'var(--surface-strong)' : 'var(--ink)',
+                color: generating ? 'var(--muted)' : '#ffffff',
+                border: `1px solid ${generating ? 'var(--hairline)' : 'var(--ink)'}`,
+                borderRadius: '10px',
+                padding: '10px 8px',
+                fontSize: '12px', fontWeight: 600,
+                cursor: parsedNames.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: parsedNames.length === 0 ? 0.5 : 1,
+                transition: 'all 0.15s',
+                letterSpacing: '-0.01em',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: '6px',
+              }}
+            >
+              <span style={{ fontSize: '18px', lineHeight: 1 }}>✦</span>
+              <span>{generating
+                ? genPhase === 'thinking' ? '思考中…' : '生成中…'
+                : `生成 ${parsedNames.length > 0 ? parsedNames.length + ' 个' : ''}`}
+              </span>
+              {!generating && <span style={{ fontSize: '10px', opacity: 0.7 }}>每个出 {VARIANT_COUNT} 稿</span>}
+              {generating && <span style={{ fontSize: '10px', opacity: 0.7 }}>点击停止</span>}
+            </button>
+          </div>
+
+          {/* Center content + optional right code panel (flex-row) */}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
+
+            {/* Scrollable icon grid */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+            {iconVariants.length === 0 ? (
+              /* Empty state */
+              <div
+                className="flex flex-col items-center justify-center h-full"
+                style={{ color: 'var(--muted-soft)' }}
+              >
+                <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.4 }}>◈</div>
+                <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--muted)', marginBottom: '6px' }}>
+                  配置风格，点击生成
+                </p>
+                <p style={{ fontSize: '12px', color: 'var(--muted-soft)' }}>
+                  每个图标生成 3 个变体，点选最满意的采用
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                {/* Column header */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '80px 80px 120px 120px 120px 128px',
+                  gap: '8px', padding: '0 0 10px',
+                  borderBottom: '1px solid var(--hairline)', marginBottom: '4px',
+                }}>
+                  <span style={{ fontSize: '10px', color: 'var(--muted-soft)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>图标名称</span>
+                  <span style={{ fontSize: '10px', color: 'var(--muted-soft)', fontWeight: 600, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em' }}>原始</span>
+                  {Array.from({ length: VARIANT_COUNT }, (_, i) => (
+                    <span key={i} style={{ fontSize: '10px', color: 'var(--muted-soft)', fontWeight: 600, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      变体 {i + 1}
+                    </span>
+                  ))}
+                  <span />
+                </div>
+
+                {/* Icon rows */}
+                {iconVariants.map((icon) => {
+                  const adoptedSvg = icon.adopted !== null ? icon.variants[icon.adopted] : null
+                  return (
+                    <div key={icon.name} style={{
+                      display: 'grid', gridTemplateColumns: '80px 80px 120px 120px 120px 128px',
+                      gap: '8px', alignItems: 'start',
+                      padding: '8px 0',
+                      borderBottom: '1px solid var(--hairline)',
+                    }}>
+                      {/* Name */}
+                      <div style={{ paddingTop: '10px' }}>
+                        <span style={{
+                          fontSize: '11px', fontFamily: 'monospace', color: 'var(--muted)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          display: 'block',
+                        }}>{icon.name}</span>
+                        {descriptions[icon.name] && (
+                          <span style={{
+                            fontSize: '9px', color: 'var(--muted-soft)', display: 'block',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            marginTop: '2px', fontStyle: 'italic',
+                          }}>{descriptions[icon.name]}</span>
+                        )}
+                      </div>
+
+                      {/* Lucide base column */}
+                      <div style={{
+                        width: '80px', height: '80px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: '8px',
+                        border: `1px solid ${lucideBases[icon.name] ? 'var(--hairline)' : 'transparent'}`,
+                        backgroundColor: lucideBases[icon.name] ? 'var(--canvas)' : 'transparent',
+                        alignSelf: 'center',
+                      }}>
+                        {lucideBases[icon.name] ? (
+                          <div
+                            dangerouslySetInnerHTML={{ __html: svgForDisplay(lucideBases[icon.name]) }}
+                            style={{ width: '48px', height: '48px', lineHeight: 0, opacity: 0.6 }}
+                          />
+                        ) : (
+                          <span style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>—</span>
+                        )}
+                      </div>
+
+                      {/* 3 variant cells */}
+                      {icon.variants.map((svg, vi) => {
+                        const isAdopted = icon.adopted === vi
+                        const err = icon.errors[vi]
+                        // Feature 4: validation badge
+                        const validation = svg && !err ? validateSVG(svg, spec) : null
+                        return (
+                          <div
+                            key={vi}
+                            onClick={() => {
+                              if (!svg) return
+                              // Adopt/unadopt
+                              setIconVariants(prev => prev.map(item =>
+                                item.name === icon.name
+                                  ? { ...item, adopted: item.adopted === vi ? null : vi }
+                                  : item
+                              ))
+                              // Feature 3: open code panel and set preview
+                              setCodePanelIcon(icon.name)
+                              setPreviewIconName(icon.name)
+                              // If clicking a different variant, adopt it
+                              if (icon.adopted !== vi) {
+                                setIconVariants(prev => prev.map(item =>
+                                  item.name === icon.name
+                                    ? { ...item, adopted: vi }
+                                    : item
+                                ))
+                              }
+                            }}
+                            title={err ?? undefined}
+                            style={{
+                              width: '120px', height: '120px',
+                              borderRadius: '10px',
+                              border: `2px solid ${isAdopted ? 'var(--brand-mint)' : err ? '#f87171' : 'var(--hairline)'}`,
+                              backgroundColor: isAdopted
+                                ? 'color-mix(in srgb, var(--brand-mint) 6%, var(--canvas))'
+                                : err ? 'color-mix(in srgb, #f87171 6%, var(--canvas))' : 'var(--canvas)',
+                              cursor: svg ? 'pointer' : 'default',
+                              position: 'relative',
+                              transition: 'border-color 0.15s, background-color 0.15s',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {/* SVG coordinate-native grid — scales with viewBox automatically */}
+                            {!err && (
+                              <svg
+                                viewBox={`0 0 ${spec.gridSize} ${spec.gridSize}`}
+                                width="100%" height="100%"
+                                style={{ position: 'absolute', inset: 0, display: 'block' }}
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <defs>
+                                  <pattern
+                                    id={`g-${icon.name}-${vi}`}
+                                    x="0" y="0" width="1" height="1"
+                                    patternUnits="userSpaceOnUse"
+                                  >
+                                    <path d="M 1 0 L 0 0 0 1" fill="none" stroke="currentColor" strokeWidth="0.05"/>
+                                  </pattern>
+                                </defs>
+                                <rect width={spec.gridSize} height={spec.gridSize} fill={`url(#g-${icon.name}-${vi})`} opacity="0.18"/>
+                              </svg>
+                            )}
+
+                            {svg ? (
+                              <>
+                                {/* Icon fills ~90% of card — SVG viewBox handles the rest */}
+                                <div
+                                  style={{ position: 'absolute', inset: '5%', lineHeight: 0 }}
+                                  dangerouslySetInnerHTML={{ __html: svgForDisplay(svg) }}
+                                />
+                                {isAdopted && (
+                                  <div style={{
+                                    position: 'absolute', top: '5px', right: '6px',
+                                    fontSize: '9px', fontWeight: 700, color: 'var(--brand-mint)',
+                                    lineHeight: 1,
+                                  }}>✓</div>
+                                )}
+                                {/* Feature 4: validation badge */}
+                                {validation && (
+                                  <div
+                                    title={validation.ok ? '规格合规' : validation.issues.join('\n')}
+                                    style={{
+                                      position: 'absolute', bottom: '5px', right: '5px',
+                                      width: '14px', height: '14px', borderRadius: '50%',
+                                      backgroundColor: validation.ok ? '#22c55e' : '#f59e0b',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontSize: '8px', fontWeight: 700, color: '#fff',
+                                      lineHeight: 1, cursor: 'help',
+                                    }}
+                                  >
+                                    {validation.ok ? '✓' : '⚠'}
+                                  </div>
+                                )}
+                              </>
+                            ) : err ? (
+                              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px' }}>
+                                <span style={{ fontSize: '14px', lineHeight: 1 }}>⚠</span>
+                                <span style={{ fontSize: '9px', color: '#ef4444', textAlign: 'center', lineHeight: 1.3, maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {err.slice(0, 30)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div style={{
+                                position: 'absolute', inset: '30%',
+                                backgroundColor: 'var(--hairline)', borderRadius: '4px',
+                                animation: 'pulse 1.5s ease-in-out infinite',
+                              }} />
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      {/* Row actions */}
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', paddingTop: '10px' }}>
+                        {/* Copy adopted */}
                         <button
-                          onClick={() => adoptedSvg && setDownloadPopover(p => p === icon.name ? null : icon.name)}
+                          onClick={() => adoptedSvg && handleCopyIcon(adoptedSvg, icon.name)}
                           disabled={!adoptedSvg}
-                          title="选择尺寸下载"
+                          title="复制已采用的变体 SVG"
                           style={{
                             width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--hairline)',
-                            backgroundColor: downloadPopover === icon.name ? 'var(--surface-card)' : 'var(--canvas)',
-                            color: 'var(--muted)',
+                            backgroundColor: copiedName === icon.name ? 'var(--brand-mint)' : 'var(--canvas)',
+                            color: copiedName === icon.name ? 'var(--ink)' : 'var(--muted)',
                             cursor: adoptedSvg ? 'pointer' : 'not-allowed',
                             opacity: adoptedSvg ? 1 : 0.3, fontSize: '11px',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             transition: 'all 0.15s', flexShrink: 0,
                           }}
-                        >↓</button>
-                        {downloadPopover === icon.name && adoptedSvg && (
-                          <div style={{
-                            position: 'absolute', bottom: 'calc(100% + 6px)', right: 0,
-                            backgroundColor: 'var(--canvas)', border: '1px solid var(--hairline)',
-                            borderRadius: '10px', padding: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                            display: 'flex', gap: '4px', zIndex: 50,
-                          }}>
-                            {([16, 20, 24, 32] as const).map(size => (
-                              <button
-                                key={size}
-                                onClick={() => handleDownloadAtSize(icon.name, adoptedSvg, size)}
-                                style={{
-                                  width: '34px', padding: '5px 0', fontSize: '11px', fontFamily: 'monospace',
-                                  borderRadius: '6px', border: '1px solid var(--hairline)',
-                                  backgroundColor: size === spec.gridSize ? 'var(--ink)' : 'var(--canvas)',
-                                  color: size === spec.gridSize ? '#fff' : 'var(--body)',
-                                  cursor: 'pointer', fontWeight: size === spec.gridSize ? 600 : 400,
-                                  transition: 'all 0.1s',
-                                }}
-                              >{size}</button>
-                            ))}
-                          </div>
-                        )}
+                        >{copiedName === icon.name ? '✓' : '⎘'}</button>
+                        {/* Download adopted — with size picker */}
+                        <div data-dl-pop style={{ position: 'relative' }}>
+                          <button
+                            onClick={() => adoptedSvg && setDownloadPopover(p => p === icon.name ? null : icon.name)}
+                            disabled={!adoptedSvg}
+                            title="选择尺寸下载"
+                            style={{
+                              width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--hairline)',
+                              backgroundColor: downloadPopover === icon.name ? 'var(--surface-card)' : 'var(--canvas)',
+                              color: 'var(--muted)',
+                              cursor: adoptedSvg ? 'pointer' : 'not-allowed',
+                              opacity: adoptedSvg ? 1 : 0.3, fontSize: '11px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              transition: 'all 0.15s', flexShrink: 0,
+                            }}
+                          >↓</button>
+                          {downloadPopover === icon.name && adoptedSvg && (
+                            <div style={{
+                              position: 'absolute', bottom: 'calc(100% + 6px)', right: 0,
+                              backgroundColor: 'var(--canvas)', border: '1px solid var(--hairline)',
+                              borderRadius: '10px', padding: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                              display: 'flex', gap: '4px', zIndex: 50,
+                            }}>
+                              {([16, 20, 24, 32] as const).map(size => (
+                                <button
+                                  key={size}
+                                  onClick={() => handleDownloadAtSize(icon.name, adoptedSvg, size)}
+                                  style={{
+                                    width: '34px', padding: '5px 0', fontSize: '11px', fontFamily: 'monospace',
+                                    borderRadius: '6px', border: '1px solid var(--hairline)',
+                                    backgroundColor: size === spec.gridSize ? 'var(--ink)' : 'var(--canvas)',
+                                    color: size === spec.gridSize ? '#fff' : 'var(--body)',
+                                    cursor: 'pointer', fontWeight: size === spec.gridSize ? 600 : 400,
+                                    transition: 'all 0.1s',
+                                  }}
+                                >{size}</button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {/* Regenerate this icon */}
+                        <button
+                          onClick={() => handleRegenerateOne(icon.name)}
+                          title="重新生成此图标的 3 个变体"
+                          style={{
+                            width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--hairline)',
+                            backgroundColor: 'var(--canvas)', color: 'var(--muted)',
+                            cursor: 'pointer', fontSize: '12px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.15s', flexShrink: 0,
+                          }}
+                        >↻</button>
+                        {/* Delete this icon row */}
+                        <button
+                          onClick={() => setIconVariants(prev => prev.filter(i => i.name !== icon.name))}
+                          title="删除此图标"
+                          style={{
+                            width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--hairline)',
+                            backgroundColor: 'var(--canvas)', color: 'var(--muted-soft)',
+                            cursor: 'pointer', fontSize: '14px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.15s', flexShrink: 0,
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, #f87171 10%, var(--canvas))'; (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#fca5a5' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--canvas)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--muted-soft)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--hairline)' }}
+                        >×</button>
                       </div>
-                      {/* Regenerate this icon */}
-                      <button
-                        onClick={() => handleRegenerateOne(icon.name)}
-                        title="重新生成此图标的 3 个变体"
-                        style={{
-                          width: '28px', height: '28px', borderRadius: '6px', border: '1px solid var(--hairline)',
-                          backgroundColor: 'var(--canvas)', color: 'var(--muted)',
-                          cursor: 'pointer', fontSize: '12px',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.15s', flexShrink: 0,
-                        }}
-                      >↻</button>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
 
-              {/* Footer hint */}
-              {iconVariants.length > 0 && (
-                <p style={{ fontSize: '11px', color: 'var(--muted-soft)', marginTop: '16px', textAlign: 'center' }}>
-                  点击变体选中采用 · 已采用 {adoptedCount} / {iconVariants.length} 个
-                </p>
-              )}
+                {/* Footer hint */}
+                {iconVariants.length > 0 && (
+                  <p style={{ fontSize: '11px', color: 'var(--muted-soft)', marginTop: '16px', textAlign: 'center' }}>
+                    点击变体选中采用 · 已采用 {adoptedCount} / {iconVariants.length} 个
+                  </p>
+                )}
+              </div>
+            )}
+            </div>{/* end scrollable icon grid */}
+
+            {/* Feature 3: Right code panel */}
+            {codePanelIcon && (
+              <div style={{
+                width: '320px',
+                flexShrink: 0,
+                borderLeft: '1px solid var(--hairline)',
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: 'var(--canvas)',
+                overflow: 'hidden',
+              }}>
+                {/* Panel header */}
+                <div style={{
+                  padding: '10px 14px',
+                  borderBottom: '1px solid var(--hairline)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>SVG 代码</span>
+                  <button
+                    onClick={() => setCodePanelIcon(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'var(--muted)', lineHeight: 1, padding: '0 2px' }}
+                  >×</button>
+                </div>
+
+                {/* Tabs */}
+                <div style={{
+                  display: 'flex', gap: '0',
+                  borderBottom: '1px solid var(--hairline)',
+                  flexShrink: 0,
+                }}>
+                  {(['svg', 'jsx', 'path'] as const).map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setCodePanelTab(tab)}
+                      style={{
+                        flex: 1,
+                        padding: '7px 0',
+                        fontSize: '11px', fontWeight: codePanelTab === tab ? 600 : 400,
+                        border: 'none',
+                        borderBottom: `2px solid ${codePanelTab === tab ? 'var(--ink)' : 'transparent'}`,
+                        backgroundColor: 'transparent',
+                        color: codePanelTab === tab ? 'var(--ink)' : 'var(--muted)',
+                        cursor: 'pointer',
+                        transition: 'all 0.1s',
+                      }}
+                    >
+                      {tab === 'svg' ? 'SVG' : tab === 'jsx' ? 'JSX' : '路径'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Code content */}
+                <div style={{ flex: 1, overflow: 'auto', backgroundColor: '#1a1a1a' }}>
+                  {codePanelAdoptedSvg ? (
+                    <pre style={{
+                      margin: 0,
+                      padding: '12px',
+                      fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                      fontSize: '10px',
+                      lineHeight: 1.6,
+                      color: '#d4d4d4',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      minHeight: '100%',
+                    }}>
+                      {getCodePanelContent(codePanelAdoptedSvg)}
+                    </pre>
+                  ) : (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      height: '100%', padding: '20px',
+                    }}>
+                      <span style={{ fontSize: '11px', color: '#555', textAlign: 'center' }}>
+                        {codePanelIconData ? '请先采用一个变体' : '图标不存在'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom metadata + copy */}
+                <div style={{
+                  flexShrink: 0,
+                  padding: '8px 12px',
+                  borderTop: '1px solid var(--hairline)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  backgroundColor: 'var(--surface-soft)',
+                }}>
+                  {codePanelAdoptedSvg ? (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>
+                        {codePanelAdoptedSvg.length} B
+                      </span>
+                      <span style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>
+                        {(codePanelAdoptedSvg.match(/<path[\s>]/g) ?? []).length} 路径
+                      </span>
+                    </div>
+                  ) : <span />}
+                  <button
+                    onClick={() => {
+                      const content = getCodePanelContent(codePanelAdoptedSvg)
+                      if (!content) return
+                      navigator.clipboard.writeText(content).then(() => {
+                        setCodePanelCopied(true)
+                        setTimeout(() => setCodePanelCopied(false), 2000)
+                      }).catch(() => {})
+                    }}
+                    disabled={!codePanelAdoptedSvg}
+                    style={{
+                      fontSize: '11px', fontWeight: 500,
+                      color: codePanelCopied ? 'var(--brand-mint)' : 'var(--muted)',
+                      backgroundColor: 'var(--canvas)',
+                      border: '1px solid var(--hairline)',
+                      borderRadius: '6px', padding: '3px 10px',
+                      cursor: codePanelAdoptedSvg ? 'pointer' : 'not-allowed',
+                      opacity: codePanelAdoptedSvg ? 1 : 0.4,
+                      transition: 'color 0.15s',
+                    }}
+                  >{codePanelCopied ? '✓ 已复制' : '复制'}</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Feature 2: Multi-size preview bar */}
+          {previewIconName && previewSvg && (
+            <div style={{
+              flexShrink: 0,
+              borderTop: '1px solid var(--hairline)',
+              backgroundColor: 'var(--surface-soft)',
+              padding: '10px 24px',
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '16px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>
+                    多尺寸验证 · {previewIconName}
+                  </span>
+                  <button
+                    onClick={() => setPreviewIconName(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: 'var(--muted)', lineHeight: 1, padding: '0 2px' }}
+                  >×</button>
+                </div>
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-end' }}>
+                  {([16, 20, 24, 32, 48] as const).map(size => (
+                    <div key={size} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                      <div
+                        style={{ width: `${size}px`, height: `${size}px`, lineHeight: 0 }}
+                        dangerouslySetInnerHTML={{ __html: resizeSVG(previewSvg, size) }}
+                      />
+                      <span style={{ fontSize: '9px', color: 'var(--muted-soft)', fontFamily: 'monospace' }}>{size}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </main>

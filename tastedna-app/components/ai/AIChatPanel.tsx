@@ -28,13 +28,30 @@ interface Props {
   onWizardOpen?: () => void
 }
 
+const MAX_IMAGE_PX = 1024 // resize longest edge to this before sending
+
 function readFileAsImage(file: File): Promise<ImageItem> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) { reject(new Error('不是图片')); return }
     const reader = new FileReader()
     reader.onload = (e) => {
-      const result = e.target?.result as string
-      resolve({ base64: result.split(',')[1], mime: file.type, preview: result })
+      const dataUrl = e.target?.result as string
+      const img = new Image()
+      img.onload = () => {
+        const { naturalWidth: w, naturalHeight: h } = img
+        const scale = Math.min(1, MAX_IMAGE_PX / Math.max(w, h))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(w * scale)
+        canvas.height = Math.round(h * scale)
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        // Use JPEG for photos (better compression), PNG for small images
+        const outMime = file.type === 'image/png' && w * h < 500_000 ? 'image/png' : 'image/jpeg'
+        const compressed = canvas.toDataURL(outMime, 0.88)
+        resolve({ base64: compressed.split(',')[1], mime: outMime, preview: dataUrl })
+      }
+      img.onerror = reject
+      img.src = dataUrl
     }
     reader.onerror = reject
     reader.readAsDataURL(file)

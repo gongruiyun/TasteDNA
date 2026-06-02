@@ -31,12 +31,15 @@ function getCornerRadius(corner: Corner, gridSize: number): number {
 
 export async function POST(request: Request) {
   const body = await request.json()
-  const { spec, names, paletteColors, refImages, conceptImages }: {
+  const { spec, names, paletteColors, refImages, conceptImages, conceptHint, lucideBases, descriptions }: {
     spec: IconSpec
     names: string[]
     paletteColors?: string[]
     refImages?: { base64: string; mime: string }[]
     conceptImages?: { base64: string; mime: string }[]
+    conceptHint?: string
+    lucideBases?: Record<string, string>
+    descriptions?: Record<string, string>
   } = body
 
   const { style, gridSize, strokeWeight, cap, corner, colorMode, opticalPad = 1 } = spec
@@ -113,10 +116,24 @@ export async function POST(request: Request) {
 </svg>
 ===END===`
 
+  const lucideSection = lucideBases && Object.keys(lucideBases).length > 0
+    ? `\n\n━━━ 基础图标参考（Lucide 开源库）━━━
+以下图标有来自 Lucide 的高质量基础 SVG，请优先基于它修改样式，而不是从零设计：
+- 保留原始路径坐标和形状结构
+- 只修改 stroke-width、fill、stroke-linecap、stroke-linejoin、rx 等样式属性
+- 可以轻微简化路径但不改变视觉概念
+- 没有提供基础图标的，从零设计
+
+${Object.entries(lucideBases).map(([name, svg]) => `===LUCIDE:${name}===\n${svg}\n===LUCIDE-END===`).join('\n\n')}`
+    : ''
+
   const prompt = `你是专业的 UI 图标设计师，输出质量对标 Lucide Icons 和 Heroicons。
 
 请依次生成以下 ${names.length} 个图标的 SVG 源码：
-${names.map((n, i) => `${i + 1}. ${n}`).join('\n')}
+${names.map((n, i) => {
+    const desc = descriptions?.[n]
+    return desc ? `${i + 1}. Generate icon for '${n}': ${desc}` : `${i + 1}. ${n}`
+  }).join('\n')}
 
 ━━━ 画布规格 ━━━
 • viewBox="0 0 ${g} ${g}"，<svg> 标签不加 width/height 属性
@@ -151,7 +168,7 @@ ${exampleEdit}
 <svg viewBox="0 0 ${g} ${g}" fill="none" xmlns="http://www.w3.org/2000/svg">
   [路径内容]
 </svg>
-===END===`
+===END===${lucideSection}`
 
   // Build message content — multimodal if ref images provided
   type ContentPart =
@@ -171,9 +188,16 @@ ${exampleEdit}
       })
     }
 
-    // Concept reference images — show what the icons should represent visually
+    // Concept reference images — identify the subject, do NOT copy the visual
     if (hasConceptImages) {
-      userContent.push({ type: 'text', text: `[CONCEPT REFERENCE IMAGES — These images show what the icons should visually represent. There are ${conceptImages!.length} concept image(s) corresponding to the icons you need to generate. Use them to understand the exact visual concept each icon should convey.]` })
+      const hintLine = conceptHint ? `\nUser description hint: "${conceptHint}" — use this to guide the abstraction.` : ''
+      userContent.push({ type: 'text', text: `[CONCEPT REFERENCE IMAGES — ${conceptImages!.length} image(s) follow, one per icon in order.
+CRITICAL RULES for concept images:
+1. DO NOT copy, trace, or replicate the composition, structure, or visual style of these images.
+2. DO NOT reproduce logos, borders, frames, or decorative elements from the reference.
+3. ONLY use them to identify the subject or concept (e.g. "a database", "a dolphin", "a shopping cart").
+4. Then design a FRESH, MINIMAL icon from scratch that abstractly represents that same concept using simple geometric shapes within the SVG grid system.
+The result should be a clean functional icon — not a reproduction of the reference image.${hintLine}]` })
       conceptImages!.forEach(img => {
         userContent.push({ type: 'image_url', image_url: { url: `data:${img.mime};base64,${img.base64}` } })
       })
@@ -181,10 +205,12 @@ ${exampleEdit}
 
     const notes: string[] = []
     if (hasRefImages) notes.push('match the visual style shown in the style reference images')
-    if (hasConceptImages) notes.push('use the concept reference images to understand exactly what each icon should depict')
-    userContent.push({ type: 'text', text: prompt + `\n\nIMPORTANT: ${notes.join(', and ')}.` })
+    if (hasConceptImages) notes.push('use concept reference images ONLY to identify what subject each icon represents — design each icon fresh as a clean geometric abstraction, never copying the reference appearance')
+    const hintSuffix = !hasConceptImages && conceptHint ? `\n\nDesign hint from user: "${conceptHint}"` : ''
+    userContent.push({ type: 'text', text: prompt + (notes.length ? `\n\nIMPORTANT: ${notes.join(', and ')}.` : '') + hintSuffix })
   } else {
-    userContent.push({ type: 'text', text: prompt })
+    const hintSuffix = conceptHint ? `\n\nDesign hint from user: "${conceptHint}"` : ''
+    userContent.push({ type: 'text', text: prompt + hintSuffix })
   }
 
   // Scale max_tokens: thinking models use extra tokens for reasoning before output
