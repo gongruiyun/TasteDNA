@@ -1016,79 +1016,105 @@ export default function IconPage() {
                   entryImgTargetRef.current = null
                 }} />
 
-              {/* Column headers */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 52px 24px', gap: '6px', marginBottom: '5px', padding: '0 2px' }}>
-                <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)' }}>图标名称</span>
-                <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)' }}>描述（可选）</span>
-                <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)' }}>参考图</span>
-                <span />
-              </div>
-
-              {/* Entry rows */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {/* Entry cards — vertical layout */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {iconEntries.map((entry, idx) => (
-                  <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 52px 24px', gap: '6px', alignItems: 'center' }}>
-                    {/* Name */}
-                    <input
-                      type="text"
-                      value={entry.name}
-                      onChange={e => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, name: e.target.value } : en))}
-                      placeholder={idx === 0 ? 'home' : idx === 1 ? 'settings' : '图标名称'}
-                      style={{
-                        width: '100%', boxSizing: 'border-box',
-                        backgroundColor: 'var(--canvas)', color: 'var(--body)',
-                        border: '1px solid var(--hairline)', borderRadius: '7px',
-                        padding: '5px 8px', fontSize: '12px', fontFamily: 'monospace',
-                        outline: 'none',
-                      }}
-                      onFocus={e => (e.target.style.borderColor = 'var(--ink)')}
-                      onBlur={e => (e.target.style.borderColor = 'var(--hairline)')}
-                    />
-                    {/* Description */}
-                    <input
-                      type="text"
-                      value={entry.description}
-                      onChange={e => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, description: e.target.value } : en))}
-                      placeholder={idx === 0 ? '简洁的房屋图标' : idx === 1 ? '齿轮风格' : ''}
-                      style={{
-                        width: '100%', boxSizing: 'border-box',
-                        backgroundColor: 'var(--canvas)', color: 'var(--body)',
-                        border: '1px solid var(--hairline)', borderRadius: '7px',
-                        padding: '5px 8px', fontSize: '12px', fontFamily: 'inherit',
-                        outline: 'none',
-                      }}
-                      onFocus={e => (e.target.style.borderColor = 'var(--ink)')}
-                      onBlur={e => (e.target.style.borderColor = 'var(--hairline)')}
-                    />
-                    {/* Reference image */}
-                    {entry.refImage ? (
-                      <div style={{ position: 'relative', width: '52px', height: '28px' }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={entry.refImage.preview} alt="ref"
-                          style={{ width: '52px', height: '28px', objectFit: 'cover', borderRadius: '5px', border: '1px solid var(--hairline)', cursor: 'pointer', display: 'block' }}
-                          onClick={() => { entryImgTargetRef.current = entry.id; entryImgInputRef.current?.click() }} />
-                        <button
-                          onClick={() => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, refImage: null } : en))}
-                          style={{ position: 'absolute', top: '-4px', right: '-4px', width: '13px', height: '13px', borderRadius: '50%', backgroundColor: 'var(--ink)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => { entryImgTargetRef.current = entry.id; entryImgInputRef.current?.click() }}
-                        title="上传参考图片"
-                        style={{
-                          width: '52px', height: '28px', borderRadius: '5px',
-                          border: '1px dashed var(--hairline)', backgroundColor: 'transparent',
-                          cursor: 'pointer', fontSize: '14px', color: 'var(--muted-soft)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>📎</button>
-                    )}
-                    {/* Remove */}
+                  <div key={entry.id} style={{
+                    position: 'relative',
+                    background: 'white',
+                    border: '1px solid var(--hairline)',
+                    borderRadius: '10px',
+                    padding: '12px 14px',
+                    display: 'flex', flexDirection: 'column', gap: '10px',
+                  }}>
+                    {/* Remove button */}
                     <button
                       onClick={() => setIconEntries(prev => {
                         const next = prev.filter(en => en.id !== entry.id)
                         return next.length === 0 ? [newEntry()] : next
                       })}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-soft)', fontSize: '14px', padding: '0', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                      style={{
+                        position: 'absolute', top: '8px', right: '10px',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--muted-soft)', fontSize: '16px', lineHeight: 1, padding: '0',
+                      }}>×</button>
+
+                    {/* Name */}
+                    <div>
+                      <label style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)', display: 'block', marginBottom: '4px' }}>
+                        图标名称
+                      </label>
+                      <input
+                        type="text"
+                        value={entry.name}
+                        onChange={e => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, name: e.target.value } : en))}
+                        placeholder={idx === 0 ? 'home' : idx === 1 ? 'settings' : '图标名称'}
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          backgroundColor: 'var(--canvas)', color: 'var(--body)',
+                          border: '1px solid var(--hairline)', borderRadius: '7px',
+                          padding: '6px 10px', fontSize: '13px', fontFamily: 'monospace',
+                          outline: 'none',
+                        }}
+                        onFocus={e => (e.target.style.borderColor = 'var(--ink)')}
+                        onBlur={e => (e.target.style.borderColor = 'var(--hairline)')}
+                      />
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)', display: 'block', marginBottom: '4px' }}>
+                        描述（可选）
+                      </label>
+                      <input
+                        type="text"
+                        value={entry.description}
+                        onChange={e => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, description: e.target.value } : en))}
+                        placeholder={idx === 0 ? '简洁的房屋图标' : idx === 1 ? '齿轮风格' : '一句话描述这个图标的含义'}
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          backgroundColor: 'var(--canvas)', color: 'var(--body)',
+                          border: '1px solid var(--hairline)', borderRadius: '7px',
+                          padding: '6px 10px', fontSize: '13px', fontFamily: 'inherit',
+                          outline: 'none',
+                        }}
+                        onFocus={e => (e.target.style.borderColor = 'var(--ink)')}
+                        onBlur={e => (e.target.style.borderColor = 'var(--hairline)')}
+                      />
+                    </div>
+
+                    {/* Reference image */}
+                    <div>
+                      <label style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)', display: 'block', marginBottom: '4px' }}>
+                        参考形象图片（可选）
+                      </label>
+                      {entry.refImage ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={entry.refImage.preview} alt="ref"
+                              style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '7px', border: '1px solid var(--hairline)', cursor: 'pointer', display: 'block' }}
+                              onClick={() => { entryImgTargetRef.current = entry.id; entryImgInputRef.current?.click() }} />
+                            <button
+                              onClick={() => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, refImage: null } : en))}
+                              style={{ position: 'absolute', top: '-5px', right: '-5px', width: '15px', height: '15px', borderRadius: '50%', backgroundColor: 'var(--ink)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
+                          </div>
+                          <span style={{ fontSize: '11px', color: 'var(--muted-soft)' }}>{entry.refImage.name}</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { entryImgTargetRef.current = entry.id; entryImgInputRef.current?.click() }}
+                          style={{
+                            width: '100%', padding: '8px', borderRadius: '7px',
+                            border: '1px dashed var(--hairline)', backgroundColor: 'transparent',
+                            cursor: 'pointer', fontSize: '12px', color: 'var(--muted-soft)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                          }}>
+                          <span>📎</span>
+                          <span>上传参考图片</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
