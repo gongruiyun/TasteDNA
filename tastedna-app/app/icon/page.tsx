@@ -97,7 +97,6 @@ const DEFAULT_SPEC: IconSpec = {
   opticalPad: 1,
 }
 
-const DEFAULT_NAMES = ''
 
 // ── Spec → DESIGN.md converter ───────────────────────────────────────────────
 
@@ -214,6 +213,16 @@ function svgForDisplay(svgString: string): string {
 
 interface RefImage { name: string; base64: string; mime: string; preview: string }
 
+function uid() { return Math.random().toString(36).slice(2, 8) }
+
+// Each icon the user wants to generate
+interface IconEntry {
+  id: string
+  name: string         // required
+  description: string  // optional
+  refImage: RefImage | null  // optional per-entry reference image
+}
+
 function readFileAsBase64(file: File): Promise<RefImage> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -293,34 +302,7 @@ function validateSVG(svgText: string, spec: IconSpec): { ok: boolean; issues: st
   return { ok: issues.length === 0, issues }
 }
 
-// ── Feature 5: Natural language name parser ──────────────────────────────────
-
-interface NameWithDesc {
-  name: string
-  description?: string
-}
-
-function parseNamesWithDesc(input: string): NameWithDesc[] {
-  // First split by newlines to get lines
-  const lines = input.split('\n').map(l => l.trim()).filter(Boolean)
-  const results: NameWithDesc[] = []
-
-  for (const line of lines) {
-    if (line.includes(':')) {
-      // Has description — don't split by comma within this line
-      const colonIdx = line.indexOf(':')
-      const name = line.slice(0, colonIdx).trim().toLowerCase()
-      const description = line.slice(colonIdx + 1).trim()
-      if (name) results.push({ name, description: description || undefined })
-    } else {
-      // No description — allow comma-separated names on this line
-      const parts = line.split(',').map(p => p.trim().toLowerCase()).filter(Boolean)
-      parts.forEach(name => results.push({ name }))
-    }
-  }
-
-  return results.slice(0, 16)
-}
+const newEntry = (): IconEntry => ({ id: uid(), name: '', description: '', refImage: null })
 
 // ── Feature 3: JSX conversion ────────────────────────────────────────────────
 
@@ -346,7 +328,7 @@ function extractPaths(svgText: string): string {
 
 export default function IconPage() {
   const [spec, setSpec] = useState<IconSpec>(DEFAULT_SPEC)
-  const [namesInput, setNamesInput] = useState(DEFAULT_NAMES)
+  const [iconEntries, setIconEntries] = useState<IconEntry[]>([newEntry()])
   const [iconVariants, setIconVariants] = useState<IconVariants[]>([])
   const [diagResult, setDiagResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [diagLoading, setDiagLoading] = useState(false)
@@ -356,11 +338,6 @@ export default function IconPage() {
   const [copiedMD, setCopiedMD] = useState(false)
   const [customMD, setCustomMD] = useState<string | null>(null)
   const [identifying, setIdentifying] = useState(false)
-  const [conceptImages, setConceptImages] = useState<RefImage[]>([])
-  const [conceptHint, setConceptHint] = useState('')
-  // 'name-only': concept images used for name ID only, NOT sent to generation
-  // 'visual': concept images sent to generation API as visual reference
-  const [conceptMode, setConceptMode] = useState<'name-only' | 'visual'>('name-only')
   const [isDragOverConcept, setIsDragOverConcept] = useState(false)
   // Download size picker: stores the open popover key ('__header__' or icon.name), null = closed
   const [downloadPopover, setDownloadPopover] = useState<string | null>(null)
@@ -375,7 +352,9 @@ export default function IconPage() {
   const [codePanelCopied, setCodePanelCopied] = useState(false)
   const colorInputRef = useRef<HTMLInputElement>(null)
   const svgInputRef = useRef<HTMLInputElement>(null)
-  const conceptInputRef = useRef<HTMLInputElement>(null)
+  const entryImgInputRef = useRef<HTMLInputElement>(null)
+  const entryImgTargetRef = useRef<string | null>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   // SVG upload → extract style → auto-fill DESIGN.md
@@ -391,40 +370,46 @@ export default function IconPage() {
     setSvgExtracting(false)
   }, [])
 
-  // Concept images — uploaded near the names textarea, used for visual concept reference
-  const handleConceptFiles = useCallback(async (files: FileList | File[]) => {
+  // Upload a reference image for a specific entry
+  const handleEntryRefImage = useCallback(async (entryId: string, files: FileList | File[]) => {
+    const file = Array.from(files).find(f => f.type.startsWith('image/') && !f.type.includes('svg'))
+    if (!file) return
+    const loaded = await readFileAsBase64(file)
+    setIconEntries(prev => prev.map(e => e.id === entryId ? { ...e, refImage: loaded } : e))
+  }, [])
+
+  // Drop/paste images globally → identify names → append new entries
+  const handleAutoIdentify = useCallback(async (files: FileList | File[]) => {
     const imgFiles = Array.from(files)
       .filter(f => f.type.startsWith('image/') && !f.type.includes('svg'))
       .slice(0, 12)
     if (imgFiles.length === 0) return
 
     const loaded = await Promise.all(imgFiles.map(readFileAsBase64))
-    setConceptImages(prev => [...prev, ...loaded].slice(0, 12))
-
-    // Auto-identify icon names from concept images
     setIdentifying(true)
     try {
       const res = await fetch('/api/identify-icons', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          images: loaded.map(img => ({ base64: img.base64, mime: img.mime })),
-        }),
+        body: JSON.stringify({ images: loaded.map(img => ({ base64: img.base64, mime: img.mime })) }),
       })
       if (res.ok) {
         const data = await res.json()
         if (Array.isArray(data.names) && data.names.length > 0) {
-          setNamesInput(data.names.join(', '))
+          setIconEntries(prev => {
+            // Remove trailing empty entry, add identified names, re-add empty entry at end
+            const nonEmpty = prev.filter(e => e.name.trim())
+            const added: IconEntry[] = data.names.map((n: string) => ({ ...newEntry(), name: n }))
+            const combined = [...nonEmpty, ...added].slice(0, 16)
+            return combined.length < 16 ? [...combined, newEntry()] : combined
+          })
         }
       }
-    } catch {
-      // silently ignore
-    } finally {
-      setIdentifying(false)
-    }
+    } catch { /* silently ignore */ }
+    finally { setIdentifying(false) }
   }, [])
 
-  // Global paste → concept images (only when pasting image files, not text)
+  // Global paste → auto-identify (only image files, not text)
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const items = Array.from(e.clipboardData?.items ?? [])
@@ -434,12 +419,12 @@ export default function IconPage() {
         .filter(Boolean) as File[]
       if (imageFiles.length > 0) {
         e.preventDefault()
-        handleConceptFiles(imageFiles)
+        handleAutoIdentify(imageFiles)
       }
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
-  }, [handleConceptFiles])
+  }, [handleAutoIdentify])
 
   const handleConceptDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -447,30 +432,33 @@ export default function IconPage() {
     const files = Array.from(e.dataTransfer.files).filter(
       f => f.type.startsWith('image/') && !f.type.includes('svg')
     )
-    if (files.length > 0) handleConceptFiles(files)
+    if (files.length > 0) handleAutoIdentify(files)
   }
 
-  // Feature 5: parse names with optional descriptions
-  const parsedNamesWithDesc = useMemo(() => parseNamesWithDesc(namesInput), [namesInput])
-  const parsedNames = parsedNamesWithDesc.map(item => item.name)
-  const descriptions: Record<string, string> = useMemo(() => {
+  const parsedNames = useMemo(
+    () => iconEntries.map(e => e.name.trim().toLowerCase()).filter(Boolean),
+    [iconEntries]
+  )
+  const descriptions = useMemo<Record<string, string>>(() => {
     const map: Record<string, string> = {}
-    parsedNamesWithDesc.forEach(item => { if (item.description) map[item.name] = item.description })
+    iconEntries.forEach(e => { if (e.name.trim() && e.description.trim()) map[e.name.trim().toLowerCase()] = e.description.trim() })
     return map
-  }, [parsedNamesWithDesc])
+  }, [iconEntries])
 
-  const buildPayload = useCallback((names: string[]) => ({
-    spec,
-    names,
-    designMd: customMD ?? undefined,
-    // Only include concept images when user explicitly wants visual reference mode
-    conceptImages: conceptMode === 'visual' && conceptImages.length > 0
-      ? conceptImages.map(i => ({ base64: i.base64, mime: i.mime }))
-      : undefined,
-    conceptHint: conceptHint.trim() || undefined,
-    lucideBases: Object.keys(lucideBases).length > 0 ? lucideBases : undefined,
-    descriptions: Object.keys(descriptions).length > 0 ? descriptions : undefined,
-  }), [spec, customMD, conceptImages, conceptHint, conceptMode, lucideBases, descriptions])
+  const buildPayload = useCallback((names: string[]) => {
+    // Collect per-entry ref images for icons that have one
+    const perEntryImages = iconEntries
+      .filter(e => e.name.trim() && e.refImage)
+      .map(e => ({ name: e.name.trim().toLowerCase(), base64: e.refImage!.base64, mime: e.refImage!.mime }))
+    return {
+      spec,
+      names,
+      designMd: customMD ?? undefined,
+      conceptImages: perEntryImages.length > 0 ? perEntryImages : undefined,
+      lucideBases: Object.keys(lucideBases).length > 0 ? lucideBases : undefined,
+      descriptions: Object.keys(descriptions).length > 0 ? descriptions : undefined,
+    }
+  }, [spec, customMD, lucideBases, descriptions, iconEntries])
 
   // Mark all icons with an error for the given variant index
   const setVariantError = useCallback((variantIndex: number, msg: string) => {
@@ -1008,100 +996,131 @@ export default function IconPage() {
             gap: '16px',
             alignItems: 'flex-start',
           }}>
-            {/* Names textarea column */}
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ ...SECTION_LABEL, marginBottom: 0 }}>图标名称</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {identifying && <span style={{ fontSize: '10px', color: 'var(--muted)', fontStyle: 'italic' }}>识别中…</span>}
-                  <input ref={conceptInputRef} type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    multiple style={{ display: 'none' }}
-                    onChange={e => { if (e.target.files?.length) handleConceptFiles(e.target.files); e.target.value = '' }} />
-                  <button
-                    onClick={() => conceptInputRef.current?.click()}
-                    title="上传图片帮助描述图标含义"
-                    style={{
-                      fontSize: '10px', color: 'var(--muted)',
-                      background: 'none', border: '1px dashed var(--hairline)',
-                      borderRadius: '5px', padding: '2px 7px', cursor: 'pointer',
-                    }}>📎 概念图</button>
-                </div>
-              </div>
-              <div
-                onDrop={handleConceptDrop}
-                onDragOver={e => { e.preventDefault(); setIsDragOverConcept(true) }}
-                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverConcept(false) }}
-                style={{ position: 'relative' }}
-              >
-                <textarea
-                  value={namesInput}
-                  onChange={(e) => setNamesInput(e.target.value)}
-                  placeholder={'robot\nhome: 简洁的房屋图标\nsettings: 齿轮风格...'}
-                  rows={3}
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    backgroundColor: 'var(--canvas)',
-                    color: identifying ? 'var(--muted-soft)' : 'var(--body)',
-                    border: `1px solid ${isDragOverConcept ? 'var(--ink)' : identifying ? 'var(--brand-mint)' : 'var(--hairline)'}`,
-                    borderRadius: '8px', padding: '8px 10px',
-                    fontSize: '12px', fontFamily: 'inherit', lineHeight: 1.6,
-                    resize: 'none', outline: 'none', display: 'block',
-                    transition: 'border-color 0.2s',
-                  }}
-                />
-                {isDragOverConcept && (
-                  <div style={{
-                    position: 'absolute', inset: 0, borderRadius: '8px', pointerEvents: 'none',
-                    backgroundColor: 'rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: '1.5px dashed var(--ink)',
-                  }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>松开添加概念图</span>
-                  </div>
-                )}
-              </div>
-              <div style={{ fontSize: '10px', color: 'var(--muted-soft)', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontStyle: 'italic' }}>支持"名称: 描述"格式 · 粘贴/拖入图片自动识别</span>
-                <span>{parsedNames.length}/16</span>
+            {/* Structured icon entry list */}
+            <div
+              ref={dropZoneRef}
+              style={{ flex: 1 }}
+              onDrop={handleConceptDrop}
+              onDragOver={e => { e.preventDefault(); setIsDragOverConcept(true) }}
+              onDragLeave={e => { if (!dropZoneRef.current?.contains(e.relatedTarget as Node)) setIsDragOverConcept(false) }}
+            >
+              {/* Hidden file input for per-entry reference images */}
+              <input ref={entryImgInputRef} type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                style={{ display: 'none' }}
+                onChange={async e => {
+                  if (entryImgTargetRef.current && e.target.files?.length) {
+                    await handleEntryRefImage(entryImgTargetRef.current, e.target.files)
+                  }
+                  e.target.value = ''
+                  entryImgTargetRef.current = null
+                }} />
+
+              {/* Column headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 52px 24px', gap: '6px', marginBottom: '5px', padding: '0 2px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)' }}>图标名称</span>
+                <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)' }}>描述（可选）</span>
+                <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: 'var(--muted-soft)' }}>参考图</span>
+                <span />
               </div>
 
-              {/* Concept images row */}
-              {conceptImages.length > 0 && (
-                <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', gap: '3px', backgroundColor: 'var(--surface-card)', borderRadius: '6px', padding: '2px 3px' }}>
-                    {([
-                      { value: 'name-only', label: '仅识别' },
-                      { value: 'visual',    label: '辅助造型' },
-                    ] as const).map(opt => (
-                      <button key={opt.value} onClick={() => setConceptMode(opt.value)}
+              {/* Entry rows */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                {iconEntries.map((entry, idx) => (
+                  <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 52px 24px', gap: '6px', alignItems: 'center' }}>
+                    {/* Name */}
+                    <input
+                      type="text"
+                      value={entry.name}
+                      onChange={e => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, name: e.target.value } : en))}
+                      placeholder={idx === 0 ? 'home' : idx === 1 ? 'settings' : '图标名称'}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        backgroundColor: 'var(--canvas)', color: 'var(--body)',
+                        border: '1px solid var(--hairline)', borderRadius: '7px',
+                        padding: '5px 8px', fontSize: '12px', fontFamily: 'monospace',
+                        outline: 'none',
+                      }}
+                      onFocus={e => (e.target.style.borderColor = 'var(--ink)')}
+                      onBlur={e => (e.target.style.borderColor = 'var(--hairline)')}
+                    />
+                    {/* Description */}
+                    <input
+                      type="text"
+                      value={entry.description}
+                      onChange={e => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, description: e.target.value } : en))}
+                      placeholder={idx === 0 ? '简洁的房屋图标' : idx === 1 ? '齿轮风格' : ''}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        backgroundColor: 'var(--canvas)', color: 'var(--body)',
+                        border: '1px solid var(--hairline)', borderRadius: '7px',
+                        padding: '5px 8px', fontSize: '12px', fontFamily: 'inherit',
+                        outline: 'none',
+                      }}
+                      onFocus={e => (e.target.style.borderColor = 'var(--ink)')}
+                      onBlur={e => (e.target.style.borderColor = 'var(--hairline)')}
+                    />
+                    {/* Reference image */}
+                    {entry.refImage ? (
+                      <div style={{ position: 'relative', width: '52px', height: '28px' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={entry.refImage.preview} alt="ref"
+                          style={{ width: '52px', height: '28px', objectFit: 'cover', borderRadius: '5px', border: '1px solid var(--hairline)', cursor: 'pointer', display: 'block' }}
+                          onClick={() => { entryImgTargetRef.current = entry.id; entryImgInputRef.current?.click() }} />
+                        <button
+                          onClick={() => setIconEntries(prev => prev.map(en => en.id === entry.id ? { ...en, refImage: null } : en))}
+                          style={{ position: 'absolute', top: '-4px', right: '-4px', width: '13px', height: '13px', borderRadius: '50%', backgroundColor: 'var(--ink)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { entryImgTargetRef.current = entry.id; entryImgInputRef.current?.click() }}
+                        title="上传参考图片"
                         style={{
-                          padding: '2px 7px', fontSize: '10px', fontWeight: 500,
-                          borderRadius: '4px', border: 'none', cursor: 'pointer',
-                          backgroundColor: conceptMode === opt.value ? 'var(--ink)' : 'transparent',
-                          color: conceptMode === opt.value ? '#fff' : 'var(--muted)',
-                        }}>{opt.label}</button>
-                    ))}
+                          width: '52px', height: '28px', borderRadius: '5px',
+                          border: '1px dashed var(--hairline)', backgroundColor: 'transparent',
+                          cursor: 'pointer', fontSize: '14px', color: 'var(--muted-soft)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>📎</button>
+                    )}
+                    {/* Remove */}
+                    <button
+                      onClick={() => setIconEntries(prev => {
+                        const next = prev.filter(en => en.id !== entry.id)
+                        return next.length === 0 ? [newEntry()] : next
+                      })}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-soft)', fontSize: '14px', padding: '0', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                   </div>
-                  {conceptImages.map((img, i) => (
-                    <div key={i} style={{ position: 'relative' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.preview} alt={img.name}
-                        style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '5px', border: '1px solid var(--hairline)' }} />
-                      <button onClick={() => setConceptImages(prev => prev.filter((_, j) => j !== i))}
-                        style={{ position: 'absolute', top: '-4px', right: '-4px', width: '13px', height: '13px', borderRadius: '50%', backgroundColor: 'var(--ink)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-                    </div>
-                  ))}
-                  <button onClick={() => conceptInputRef.current?.click()}
-                    style={{ width: '32px', height: '32px', borderRadius: '5px', border: '1.5px dashed var(--hairline)', backgroundColor: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--muted-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                  <button onClick={() => setConceptImages([])} style={{ fontSize: '10px', color: 'var(--muted-soft)', background: 'none', border: 'none', cursor: 'pointer' }}>清除</button>
-                </div>
-              )}
+                ))}
+              </div>
 
-              {/* Concept hint */}
-              {(conceptImages.length > 0 || conceptHint) && (
-                <input type="text" value={conceptHint} onChange={e => setConceptHint(e.target.value)}
-                  placeholder="描述补充：海豚剪影、数据库圆柱…"
-                  style={{ marginTop: '6px', width: '100%', boxSizing: 'border-box', backgroundColor: 'var(--canvas)', color: 'var(--body)', border: '1px solid var(--hairline)', borderRadius: '7px', padding: '5px 9px', fontSize: '11px', fontFamily: 'inherit', outline: 'none', display: 'block' }} />
+              {/* Add row + hints */}
+              <div style={{ marginTop: '7px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={() => setIconEntries(prev => prev.length < 16 ? [...prev, newEntry()] : prev)}
+                  disabled={iconEntries.length >= 16}
+                  style={{
+                    fontSize: '11px', padding: '3px 10px', borderRadius: '6px',
+                    border: '1px dashed var(--hairline)', background: 'transparent',
+                    color: 'var(--muted)', cursor: iconEntries.length >= 16 ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                  }}>
+                  <span style={{ fontSize: '13px' }}>+</span> 添加图标
+                </button>
+                <span style={{ fontSize: '10px', color: 'var(--muted-soft)', fontStyle: 'italic', flex: 1 }}>
+                  {identifying ? '识别中…' : '拖入/粘贴图片自动识别名称'}
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--muted-soft)' }}>{parsedNames.length}/16</span>
+              </div>
+
+              {/* Drag-over overlay */}
+              {isDragOverConcept && (
+                <div style={{
+                  position: 'absolute', inset: 0, borderRadius: '8px', pointerEvents: 'none',
+                  backgroundColor: 'rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '1.5px dashed var(--ink)', zIndex: 10,
+                }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>松开自动识别图标名称</span>
+                </div>
               )}
             </div>
 
