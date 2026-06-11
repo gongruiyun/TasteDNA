@@ -92,7 +92,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
         return file ? readFileAsImage(file) : null
       })).then(results => {
         const valid = results.filter(Boolean) as ImageItem[]
-        setImages(prev => [...prev, ...valid].slice(0, 8))
+        setImages(prev => [...prev, ...valid])
       })
     }
     document.addEventListener('paste', handlePaste)
@@ -100,9 +100,9 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
   }, [tab])
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
-    const arr = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, 8)
+    const arr = Array.from(files).filter(f => f.type.startsWith('image/'))
     const results = await Promise.all(arr.map(readFileAsImage))
-    setImages(prev => [...prev, ...results].slice(0, 8))
+    setImages(prev => [...prev, ...results])
   }, [])
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,7 +202,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
             const updated = [...prev]
             updated[updated.length - 1] = {
               role: 'assistant',
-              content: '⚠️ API Key 无效或已过期。\n\n请在项目根目录的 `.env.local` 文件中更新 `ANTHROPIC_API_KEY`，需要以 `sk-ant-api03-` 开头的正式 API Key（可在 console.anthropic.com 获取），然后重启开发服务器。',
+              content: '⚠️ API Key 无效或已过期。\n\n请在项目根目录的 `.env.local` 文件中更新 `ARK_API_KEY`，然后重启开发服务器。',
             }
             return updated
           })
@@ -561,7 +561,7 @@ export default function AIChatPanel({ currentContent, onApply, collapsed, onTogg
                 ) : (
                   <div className="py-1">
                     <p className="text-[11px]" style={{ color: 'var(--muted)' }}>点击上传 / 拖入 / ⌘V 粘贴</p>
-                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted-soft)' }}>支持多张，最多 8 张</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--muted-soft)' }}>支持多张，拖入或粘贴</p>
                   </div>
                 )}
               </div>

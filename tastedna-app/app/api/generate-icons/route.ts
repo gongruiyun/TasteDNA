@@ -263,7 +263,6 @@ The result should be a clean functional icon — not a reproduction of the refer
           try {
             const json = JSON.parse(data)
             const delta = json.choices?.[0]?.delta
-            // Capture both regular content and reasoning (thinking model) content
             const text: string | undefined = delta?.content
             const reasoning: string | undefined = delta?.reasoning_content
             if (text) {

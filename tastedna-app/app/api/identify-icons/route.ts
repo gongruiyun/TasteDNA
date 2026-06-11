@@ -51,7 +51,6 @@ No explanation. Just the JSON array.`
         try {
           const json = JSON.parse(body)
           const text: string = json.choices?.[0]?.message?.content ?? ''
-          // Extract JSON array from response
           const match = text.match(/\[[\s\S]*?\]/)
           if (match) {
             const names: string[] = JSON.parse(match[0])
